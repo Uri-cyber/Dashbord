@@ -1,8 +1,112 @@
 // Global Variables
-let projectsData = []; // לאחסון נתוני הפרויקטים
-let currentProjectIndex = null; // לעקוב אחר הפרויקט שבעריכה
-let projectHistory = []; // לשמירת היסטוריית שינויים
+let projectsData = []; // Stores all project entries
+let currentProjectIndex = null; // Tracks the project currently being edited
+let projectHistory = []; // Keeps the activity history log
 
+const DEFAULT_MONITOR_TEMPLATE = Object.freeze({
+    baseUrl: "",
+    login: {
+        enabled: false,
+        path: "/auth/login",
+        method: "POST",
+        username: "",
+        password: "",
+        bodyTemplate: "{\"user\":\"${username}\",\"password\":\"${password}\"}",
+        tokenLocation: "json:token",
+        tokenHeaderName: "Authorization",
+        tokenPrefix: "Bearer ",
+        persistPassword: true
+    },
+    tests: [],
+    schedule: {
+        enabled: false,
+        intervalSec: 300
+    },
+    state: {
+        lastRunAt: null,
+        overall: "unknown",
+        tests: {},
+        failures: [],
+        tokenStoredAt: null,
+        lastCreatedId: null
+    }
+});
+
+const monitorTemplateJSON = JSON.stringify(DEFAULT_MONITOR_TEMPLATE);
+
+function createDefaultMonitor() {
+    return JSON.parse(monitorTemplateJSON);
+}
+
+function isPlainObject(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function cloneDefaultValue(value) {
+    if (Array.isArray(value)) {
+        return value.map(cloneDefaultValue);
+    }
+    if (isPlainObject(value)) {
+        const clone = {};
+        Object.keys(value).forEach(key => {
+            clone[key] = cloneDefaultValue(value[key]);
+        });
+        return clone;
+    }
+    return value;
+}
+
+function mergeDefaults(target, defaults) {
+    let changed = false;
+    Object.keys(defaults).forEach(key => {
+        const defaultValue = defaults[key];
+        const hasOwn = Object.prototype.hasOwnProperty.call(target, key);
+        const currentValue = target[key];
+
+        if (!hasOwn || currentValue === undefined) {
+            target[key] = cloneDefaultValue(defaultValue);
+            changed = true;
+            return;
+        }
+
+        if (isPlainObject(defaultValue)) {
+            if (!isPlainObject(currentValue)) {
+                target[key] = cloneDefaultValue(defaultValue);
+                changed = true;
+            } else if (mergeDefaults(currentValue, defaultValue)) {
+                changed = true;
+            }
+            return;
+        }
+
+        if (Array.isArray(defaultValue) && !Array.isArray(currentValue)) {
+            target[key] = cloneDefaultValue(defaultValue);
+            changed = true;
+        }
+    });
+    return changed;
+}
+
+function ensureMonitorDefaults(projects) {
+    if (!Array.isArray(projects)) return false;
+    let changed = false;
+
+    projects.forEach(project => {
+        if (!project || typeof project !== "object") return;
+
+        if (!project.monitor) {
+            project.monitor = createDefaultMonitor();
+            changed = true;
+            return;
+        }
+
+        if (mergeDefaults(project.monitor, DEFAULT_MONITOR_TEMPLATE)) {
+            changed = true;
+        }
+    });
+
+    return changed;
+}
 // Theme Toggle - החלפת ערכת נושא
 document.getElementById("toggle-theme").addEventListener("click", () => {
     document.body.classList.toggle("dark");
@@ -49,15 +153,13 @@ function handleFileUpload(event) {
         reader.onload = function (e) {
             try {
                 const data = JSON.parse(e.target.result);
-                projectsData = data; // עדכון משתנה גלובלי
-                
-                // שמירה ב-localStorage
-                localStorage.setItem('projectsData', JSON.stringify(data));
-                
-                // הוספת אירוע להיסטוריה
+                projectsData = data; // Update the in-memory array
+                ensureMonitorDefaults(projectsData);
+                // Persist to localStorage
+                localStorage.setItem('projectsData', JSON.stringify(projectsData));
+                // Log history entry
                 addToHistory("העלאת קובץ", "כל הפרויקטים הוחלפו מקובץ");
-                
-                // רינדור הפרויקטים
+                // Re-render projects
                 renderProjects(projectsData);
                 renderHotItems();
             } catch (error) {
@@ -367,7 +469,8 @@ function saveNewProject() {
     const newProject = {
         name: projectName,
         fieldNames: {},
-        fields: {}
+        fields: {},
+        monitor: createDefaultMonitor()
     };
     
     // איסוף שמות השדות והערכים
@@ -514,6 +617,10 @@ window.addEventListener('load', () => {
     if (storedProjects) {
         try {
             projectsData = JSON.parse(storedProjects);
+            const migrated = ensureMonitorDefaults(projectsData);
+            if (migrated) {
+                localStorage.setItem('projectsData', JSON.stringify(projectsData));
+            }
             renderProjects(projectsData);
             renderHotItems();
         } catch (e) {
@@ -527,7 +634,8 @@ window.addEventListener('load', () => {
             .then(response => response.json())
             .then(data => {
                 projectsData = data;
-                localStorage.setItem('projectsData', JSON.stringify(data));
+                ensureMonitorDefaults(projectsData);
+                localStorage.setItem('projectsData', JSON.stringify(projectsData));
                 renderProjects(projectsData);
                 renderHotItems();
                 

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿# Projects Board (RTL Dashboard)
+# Projects Board (RTL Dashboard)
 
 A lightweight, static, single‑page dashboard (RTL/Hebrew UI) for viewing and managing a list of projects. Data is loaded from a JSON file on first run and then persisted in `localStorage`. Users can add, edit, delete projects, export the current data as JSON, switch dark mode, and view an activity history.
 
@@ -122,6 +122,49 @@ Notes:
 
 ---
 
+## Synthetic Monitoring – Data Model (Phase 1)
+
+Phase 1 introduces a dormant `monitor` object for every project. Older JSON files are migrated automatically on load and the merged data is persisted back to `localStorage` (and therefore to future exports).
+
+Default structure:
+
+```json
+"monitor": {
+  "baseUrl": "",
+  "login": {
+    "enabled": false,
+    "path": "/auth/login",
+    "method": "POST",
+    "username": "",
+    "password": "",
+    "bodyTemplate": "{\"user\":\"${username}\",\"password\":\"${password}\"}",
+    "tokenLocation": "json:token",
+    "tokenHeaderName": "Authorization",
+    "tokenPrefix": "Bearer ",
+    "persistPassword": true
+  },
+  "tests": [],
+  "schedule": {
+    "enabled": false,
+    "intervalSec": 300
+  },
+  "state": {
+    "lastRunAt": null,
+    "overall": "unknown",
+    "tests": {},
+    "failures": [],
+    "tokenStoredAt": null,
+    "lastCreatedId": null
+  }
+}
+```
+
+Notes:
+- No UI or synthetic execution yet; phases 2+ will consume these fields.
+- Credentials are still blank/disabled (no tokens are stored in Phase 1).
+- All data remains purely client-side; CORS/opaque responses still apply when synthetic flows arrive.
+
+---
 ## Security & Hardening
 
 The app treats all dynamic content as untrusted and escapes it before injecting into the DOM.
@@ -170,8 +213,3 @@ See `SECURITY.md` for detailed guidance and manual XSS test ideas.
 - No external dependencies, just static files
 - RTL and Hebrew UI text; CSS custom properties with a `.dark` theme override
 - Keep DOM updates safe (prefer `textContent`/`setAttribute`, or escape before templating)
-
-
-
-
-
