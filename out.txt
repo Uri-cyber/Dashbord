@@ -1,0 +1,6 @@
+﻿## Security & Hardening
+
+The app treats all dynamic content as untrusted and escapes it before injecting into the DOM.
+
+- `escapeHTML(str)` sanitizes `& < > " '` before `innerHTML`/attribute injection
+- `truncateText` returns escaped text to min
