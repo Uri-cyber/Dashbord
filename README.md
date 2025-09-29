@@ -1,4 +1,4 @@
-# Projects Board (RTL Dashboard)
+﻿﻿﻿﻿﻿# Projects Board (RTL Dashboard)
 
 A lightweight, static, single‑page dashboard (RTL/Hebrew UI) for viewing and managing a list of projects. Data is loaded from a JSON file on first run and then persisted in `localStorage`. Users can add, edit, delete projects, export the current data as JSON, switch dark mode, and view an activity history.
 
@@ -15,7 +15,7 @@ A lightweight, static, single‑page dashboard (RTL/Hebrew UI) for viewing and m
 - Hot items ticker showing project names
 - History log (create/edit/delete/import/export) with timestamps in `localStorage`
 - Dark mode toggle persisted in `localStorage`
-- Basic connectivity banner (best‑effort) and link status indicator (see limitations)
+- Connectivity banner (best-effort) and per-card link status indicator (see details below)
 
 ---
 
@@ -33,6 +33,19 @@ A lightweight, static, single‑page dashboard (RTL/Hebrew UI) for viewing and m
 
 ---
 
+## Status Indicators (Lights)
+
+Small circle on each card reflects link status (best‑effort):
+
+- White (`#ffffff`) — No URL / Not checked
+- Green (`#8DC71E`) — Reachable (opaque success in browser)
+- Red (`#ff0033`) — Failed to reach (network error or rejected request)
+
+Notes:
+- Browser `no-cors` requests are opaque: a successful fetch does not guarantee HTTP 2xx.
+- For production accuracy, use a server‑side proxy (see “Connectivity & Status Limitations”).
+
+---
 ## Getting Started
 
 Because the app fetches `projects.json`, run it behind a static HTTP server.
@@ -48,7 +61,7 @@ Opening `index.html` directly via `file://` may block `fetch` on first load; a l
 ## Usage
 
 - Upload JSON: Click “Upload”, pick a `projects.json`. Data is parsed and saved to `localStorage`.
-- Add project: “Add Project” → set Name (required), optional URL, and up to 4 label/value pairs.
+- Add project: "Add Project" → set Name (required), optional URL, and up to 4 label/value pairs.
 - Edit/Delete: Use the buttons on each card. A confirmation is shown for delete.
 - Download JSON: Exports the current `projectsData` (pretty‑printed, 4‑space indent).
 - Dark mode: Toggle via the footer button; preference persists across reloads.
@@ -56,6 +69,25 @@ Opening `index.html` directly via `file://` may block `fetch` on first load; a l
 
 Input limits (to preserve layout):
 - Name up to 20 chars; field label up to 15; field value up to 20.
+
+Buttons & actions summary:
+- `Upload` — import `projects.json` and persist to `localStorage`
+- `Download JSON` — export current data
+- `Toggle Theme` — switch light/dark (persisted)
+- `Add Project` — open add modal
+- `History` — open activity log
+
+---
+
+## Connectivity Banner
+
+Best‑effort local connectivity check pings public DNS endpoints:
+
+- `https://dns.google`
+- `https://8.8.8.8`
+- `https://8.8.4.4`
+
+If all checks fail, a banner appears and `connection-lost` is added to `<body>`.
 
 ---
 
@@ -109,8 +141,16 @@ See `SECURITY.md` for detailed guidance and manual XSS test ideas.
 - Project link status and the connectivity banner use `fetch(..., { method: "HEAD", mode: "no-cors" })`.
 - In browsers, a `no-cors` response is opaque; you cannot read the real status code.
 - Current behavior may mark an opaque response as “up”. For production‑grade checks, consider:
-  - A small server‑side proxy that performs the request and returns a real status code
-  - Or marking opaque results as “unknown” rather than “up”
+  - A small server-side proxy that performs the request and returns a real status code
+  - Or marking opaque results as "unknown" rather than "up"
+
+---
+
+## Theming & Customization
+
+- Colors are controlled via CSS Custom Properties in `styles.css`.
+- Dark mode is applied by adding `.dark` to `<body>`.
+- You can adjust card borders, button colors, and animations without changing JS.
 
 ---
 
@@ -130,4 +170,8 @@ See `SECURITY.md` for detailed guidance and manual XSS test ideas.
 - No external dependencies, just static files
 - RTL and Hebrew UI text; CSS custom properties with a `.dark` theme override
 - Keep DOM updates safe (prefer `textContent`/`setAttribute`, or escape before templating)
+
+
+
+
 
