@@ -1,127 +1,133 @@
-# 🧠 דשבורד סטטוס פרויקטים – צוות בדיקות
+# Projects Board (RTL Dashboard)
 
-מערכת ויזואלית לניהול ומעקב אחרי סטטוס פרויקטים בצוותי בדיקות תוכנה. כוללת תמיכה בהעלאת נתונים, עריכה, היסטוריית שינויים, עיצוב כהה/בהיר, שורת ריצה של "מוצרים חמים", ויכולת ניטור זמינות של אתרי הפרויקטים ותקשורת לוקאלית.
+A lightweight, static, single‑page dashboard (RTL/Hebrew UI) for viewing and managing a list of projects. Data is loaded from a JSON file on first run and then persisted in `localStorage`. Users can add, edit, delete projects, export the current data as JSON, switch dark mode, and view an activity history.
+
+- Pure HTML/CSS/JavaScript — no build, no dependencies
+- UI is right‑to‑left (Hebrew), but this README is in English
 
 ---
 
-## 📁 מבנה קבצים
+## Features
+
+- Project cards grid with truncated labels/values to keep layout tidy
+- Add/Edit/Delete projects via modals; change field labels and values
+- Download updated JSON reflecting current state (`projects.json` schema)
+- Hot items ticker showing project names
+- History log (create/edit/delete/import/export) with timestamps in `localStorage`
+- Dark mode toggle persisted in `localStorage`
+- Basic connectivity banner (best‑effort) and link status indicator (see limitations)
+
+---
+
+## File Structure
 
 ```
 .
-├── index.html           # קובץ HTML ראשי, כולל מודלים ואלמנטים עיקריים
-├── script.js            # קוד JavaScript לממשק, לוגיקה, טפסים, ניטור URL ועוד
-├── styles.css           # עיצוב רספונסיבי עם תמיכה ב-dark mode + עיצוב חיווי
-├── projects.json        # קובץ JSON לדוגמה עם פרויקטים (נטען כברירת מחדל)
+├─ index.html     # Main HTML (modals, ticker, connectivity banner, footer controls)
+├─ script.js      # App logic: load/store/render, modals, history, status checks
+├─ styles.css     # Theme (light/dark), layout, responsive grid, RTL support
+├─ projects.json  # Sample data loaded on first run
+├─ SECURITY.md    # Security notes and hardening guidelines
+└─ CHANGES.md     # Changelog and manual test notes
 ```
 
 ---
 
-## 🎯 מטרות עיקריות
+## Getting Started
 
-- הצגת סטטוס פרויקטים בצורה ויזואלית.
-- ניטור תקשורת מול אתרי הפרויקטים.
-- ניטור תקשורת לוקאלית (אינטרנט כללי).
-- הוספה / עריכה / מחיקה של פרויקטים.
-- תמיכה בהעלאת/שמירת קבצי JSON.
-- תצוגה רציפה של "מוצרים חמים" בראש המסך.
-- שמירת מידע בהיסטוריית שינויים (ב־localStorage).
-- תמיכה ב־Dark Mode עם כפתור מעבר.
+Because the app fetches `projects.json`, run it behind a static HTTP server.
 
----
+- Python (quickest):
+  - `python -m http.server 5500`
+  - Open `http://localhost:5500/`
 
-## 🆕 יכולת ניטור אתרי פרויקטים
-
-### ✅ איך זה עובד?
-- בעת הוספת/עריכת פרויקט, ניתן להזין כתובת אתר (URL).
-- כל דקה נשלחת בקשת HEAD לבדוק אם האתר זמין.
-- תוצאת הבדיקה מוצגת באמצעות נורה צבעונית בכל כרטיס פרויקט.
-
-### 🟢🟡🔴 חיווי ויזואלי
-- 🟢 ירוק טורקיז – האתר זמין (`#00cc99`)
-- 🔴 אדום בוהק – אין תקשורת (`#ff0033`)
-- ⚪ לבן – לא הוזנה כתובת URL
-
-### 🖼️ מיקום החיווי
-- בתחתית השמאלית של כל כרטיס פרויקט.
+Opening `index.html` directly via `file://` may block `fetch` on first load; a local server avoids that.
 
 ---
 
-## 🌐 ניטור תקשורת לוקאלית (אינטרנט כללי)
+## Usage
 
-### ✅ איך זה עובד?
-- כל דקה מתבצעת בדיקה לשלוש כתובות DNS ציבוריות:
-  - `https://dns.google`
-  - `https://8.8.8.8`
-  - `https://8.8.4.4`
-- אם **כל השלוש נכשלות**:
-  - הדף מקבל רקע אדום מונפש.
-  - מופיעה הודעה בראש הדף: "❗ קיימת בעיית תקשורת עם האינטרנט..."
-- אם לפחות אחת מצליחה – העיצוב חוזר למצב תקין.
+- Upload JSON: Click “Upload”, pick a `projects.json`. Data is parsed and saved to `localStorage`.
+- Add project: “Add Project” → set Name (required), optional URL, and up to 4 label/value pairs.
+- Edit/Delete: Use the buttons on each card. A confirmation is shown for delete.
+- Download JSON: Exports the current `projectsData` (pretty‑printed, 4‑space indent).
+- Dark mode: Toggle via the footer button; preference persists across reloads.
+- History: Open “History” to see timestamped actions stored in `localStorage`.
 
-### 💬 עיצוב ההודעה
-- באנר בולט בצבע אדום בראש המסך.
-- כולל אנימציית Pulse וניתן לסגירה אוטומטית ברגע שחוזרת התקשורת.
+Input limits (to preserve layout):
+- Name up to 20 chars; field label up to 15; field value up to 20.
 
 ---
 
-## 🖥️ הוראות שימוש
+## Data Format (projects.json)
 
-1. **העלאת קובץ JSON**  
-   לחצן "העלה קובץ" מאפשר טעינת נתונים מהקובץ שלך (פורמט `projects.json`).
-
-2. **שמירת נתונים כקובץ**  
-   לחצן "שמור קובץ" מוריד את הנתונים כקובץ `projects.json` מעודכן.
-
-3. **הוספת פרויקט חדש**  
-   כולל שם, עד 4 שדות מותאמים אישית, ואופציונלית כתובת URL.
-
-4. **עריכת פרויקט קיים**  
-   לחצן "עריכה" בכל כרטיס מאפשר שינוי כל הפרטים כולל URL.
-
-5. **מחיקת פרויקט**  
-   לחצן "מחק" בכל כרטיס מוחק את הפרויקט, עם אישור מקדים.
-
-6. **מעבר עיצוב (בהיר/כהה)**  
-   לחצן "שנה עיצוב" שומר את ההעדפה ב־localStorage.
-
-7. **היסטוריית שינויים**  
-   תיעוד מלא של העלאות, עריכות, מחיקות והורדות.
-
----
-
-## 📦 פורמט קובץ JSON
+Each project:
 
 ```json
 [
   {
-    "name": "שם פרויקט",
+    "name": "Project A",
     "url": "https://example.com",
     "fieldNames": {
-      "1": "תווית 1",
-      "2": "תווית 2",
-      "3": "תווית 3",
-      "4": "תווית 4"
+      "1": "Owner",
+      "2": "Status",
+      "3": "Date",
+      "4": "Phone"
     },
     "fields": {
-      "1": "ערך 1",
-      "2": "ערך 2",
-      "3": "ערך 3",
-      "4": "ערך 4"
+      "1": "John Doe",
+      "2": "In Progress",
+      "3": "2025-05-23",
+      "4": "050-67867868"
     }
   }
 ]
 ```
 
----
-
-## 🎨 עיצוב ותצוגה
-
-- שימוש ב־CSS משתנה (Custom Properties) לשם תמיכה בשני מצבי תצוגה.
-- תצוגה רספונסיבית מותאמת לנייד.
-- תמיכה מלאה בעברית (RTL).
-- חיווי זמינות עם עיגול צבעוני בפינת הכרטיס.
-- רקע מהבהב/נייד במצב ניתוק תקשורת.
-- באנר אדום בראש הדף עם הסבר ברור.
-- כל הכפתורים עם אפקטים חזותיים ואנימציה.
+Notes:
+- Keys inside `fieldNames` and `fields` are the strings "1"–"4".
+- `url` is optional; leave empty if not applicable.
 
 ---
+
+## Security & Hardening
+
+The app treats all dynamic content as untrusted and escapes it before injecting into the DOM.
+
+- `escapeHTML(str)` sanitizes `& < > " '` before `innerHTML`/attribute injection
+- `truncateText` returns escaped text to minimize missed call‑sites
+- Edit modal inputs (`value=…`) are sanitized before templating
+- History modal uses escaped `date`, `type`, `description`
+- Card title (`title`) is set via DOM API post‑render to avoid broken HTML
+
+See `SECURITY.md` for detailed guidance and manual XSS test ideas.
+
+---
+
+## Connectivity & Status Limitations
+
+- Project link status and the connectivity banner use `fetch(..., { method: "HEAD", mode: "no-cors" })`.
+- In browsers, a `no-cors` response is opaque; you cannot read the real status code.
+- Current behavior may mark an opaque response as “up”. For production‑grade checks, consider:
+  - A small server‑side proxy that performs the request and returns a real status code
+  - Or marking opaque results as “unknown” rather than “up”
+
+---
+
+## Manual Test Checklist
+
+- Initial load: Cards load from `projects.json` and persist to `localStorage`
+- XSS hardening: Add/Edit fields with `<script>…</script>`, `<img onerror=…>` and quotes — should render as plain text
+- Edit/Save: Changes reflect on cards and in `localStorage`; history logs the action
+- Delete: Removes the card and appends a history entry
+- Download JSON: File contents match the current data
+- Dark mode: Preference persists after reload
+
+---
+
+## Development Notes
+
+- No external dependencies, just static files
+- RTL and Hebrew UI text; CSS custom properties with a `.dark` theme override
+- Keep DOM updates safe (prefer `textContent`/`setAttribute`, or escape before templating)
+
