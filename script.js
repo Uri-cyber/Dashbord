@@ -17,8 +17,19 @@ document.getElementById("fileInput").addEventListener("change", handleFileUpload
 // פונקציה לקיצור טקסט ארוך והוספת שלוש נקודות
 function truncateText(text, maxLength = 20) {
     if (!text) return "";
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + "...";
+    const t = (text.length <= maxLength) ? text : (text.substring(0, maxLength) + "...");
+    return escapeHTML(t);
+}
+
+// Escape HTML to prevent XSS when injecting into innerHTML/attributes
+function escapeHTML(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
 // רינדור של הפריטים בטיקר
@@ -99,7 +110,7 @@ function renderProjects(projects) {
 
         card.innerHTML = `
         <div class="card-body">
-            <h3 class="card-title" title="${project.name}">${truncatedName}</h3>
+            <h3 class="card-title" title="${truncatedName}">${truncatedName}</h3>
             ${fieldsHTML}
             <div class="card-buttons">
                 <button class="delete-button" onclick="confirmDelete(${index})">מחק</button>
@@ -109,6 +120,14 @@ function renderProjects(projects) {
         </div>
         `;
 
+
+        // Ensure safe title attribute without breaking HTML
+        const titleEl = card.querySelector('.card-title');
+        if (titleEl) {
+            const nameVal = (project.name && typeof project.name === 'string') ? project.name : '';
+            const titleText = nameVal.length <= 20 ? nameVal : (nameVal.substring(0, 20) + '...');
+            titleEl.setAttribute('title', titleText);
+        }
 
         container.appendChild(card);
     });
@@ -144,10 +163,10 @@ function openEditModal(index) {
 
         fieldsHTML += `
             <label for="edit-field-name-${i}">שם שדה ${i}:</label>
-            <input type="text" id="edit-field-name-${i}" value="${fieldName}" maxlength="15">
+            <input type="text" id="edit-field-name-${i}" value="${escapeHTML(fieldName)}" maxlength="15">
 
             <label for="edit-field-value-${i}">ערך שדה ${i}:</label>
-            <input type="text" id="edit-field-value-${i}" value="${fieldValue}" maxlength="20">
+            <input type="text" id="edit-field-value-${i}" value="${escapeHTML(fieldValue)}" maxlength="20">
         `;
     }
         
@@ -238,9 +257,9 @@ function openHistoryModal() {
             
             historyHTML += `
                 <div class="history-item">
-                    <span class="history-date">${item.date}</span>
-                    <span class="history-type ${typeClass}">${item.type}</span>
-                    <p>${item.description}</p>
+                    <span class="history-date">${escapeHTML(item.date)}</span>
+                    <span class="history-type ${typeClass}">${escapeHTML(item.type)}</span>
+                    <p>${escapeHTML(item.description)}</p>
                 </div>
             `;
         }
