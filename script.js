@@ -66,6 +66,115 @@ if (typeof window !== 'undefined') {
     window.isMonitorUIEnabled = isMonitorUIEnabled;
 }
 
+const MONITOR_STATUS_CLASSES = ['monitor-pass', 'monitor-partial', 'monitor-fail', 'monitor-unknown'];
+const MONITOR_STATUS_LABELS = {
+    pass: '\u05e2\u05d1\u05e8 \u05d1\u05d4\u05e6\u05dc\u05d7\u05d4',
+    partial: '\u05e2\u05d1\u05e8 \u05d7\u05dc\u05e7\u05d9\u05ea',
+    fail: '\u05e0\u05db\u05e9\u05dc',
+    unknown: '\u05dc\u05d0 \u05e0\u05d1\u05d3\u05e7'
+};
+
+function decorateCardWithMonitorStatus(card, project, index) {
+    const cardBody = card.querySelector('.card-body');
+    if (!cardBody) return;
+
+    card.classList.add('monitor-ui-enabled');
+
+    let urlIndicator = card.querySelector(`.status-indicator[data-index="${index}"]`);
+    if (urlIndicator) {
+        urlIndicator.removeAttribute('style');
+        urlIndicator.classList.add('status-indicator-url');
+        urlIndicator.title = '\u05e1\u05d8\u05d8\u05d5\u05e1 URL: \u05dc\u05d0 \u05e0\u05d1\u05d3\u05e7';
+    } else {
+        urlIndicator = document.createElement('div');
+        urlIndicator.className = 'status-indicator status-indicator-url';
+        urlIndicator.dataset.index = String(index);
+        urlIndicator.title = '\u05e1\u05d8\u05d8\u05d5\u05e1 URL: \u05dc\u05d0 \u05e0\u05d1\u05d3\u05e7';
+    }
+
+    const statusGroup = document.createElement('div');
+    statusGroup.className = 'status-indicator-group';
+    statusGroup.appendChild(urlIndicator);
+
+    const monitorIndicator = document.createElement('div');
+    monitorIndicator.className = 'status-indicator monitor-indicator monitor-unknown';
+    monitorIndicator.dataset.monitorIndex = String(index);
+    statusGroup.appendChild(monitorIndicator);
+
+    const statusBar = document.createElement('div');
+    statusBar.className = 'card-status-bar';
+    statusBar.appendChild(statusGroup);
+
+    const lastRunInfo = document.createElement('span');
+    lastRunInfo.className = 'monitor-last-run';
+    lastRunInfo.textContent = '\u05d1\u05d3\u05d9\u05e7\u05d4 \u05d0\u05d7\u05e8\u05d5\u05e0\u05d4: \u2014';
+    statusBar.appendChild(lastRunInfo);
+
+    cardBody.appendChild(statusBar);
+
+    updateMonitorIndicator(project, monitorIndicator, lastRunInfo);
+}
+
+function updateMonitorIndicator(project, indicatorEl, lastRunEl) {
+    if (!indicatorEl) return;
+
+    let status = 'unknown';
+    const tooltipLines = ['\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d1\u05d3\u05d9\u05e7\u05d5\u05ea: ' + MONITOR_STATUS_LABELS.unknown];
+    let lastRunLabel = '\u05d1\u05d3\u05d9\u05e7\u05d4 \u05d0\u05d7\u05e8\u05d5\u05e0\u05d4: \u2014';
+
+    const monitor = project && project.monitor ? project.monitor : null;
+    const state = monitor && monitor.state ? monitor.state : null;
+
+    if (state) {
+        if (state.overall && MONITOR_STATUS_CLASSES.includes('monitor-' + state.overall)) {
+            status = state.overall;
+            tooltipLines[0] = '\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d1\u05d3\u05d9\u05e7\u05d5\u05ea: ' + (MONITOR_STATUS_LABELS[status] || MONITOR_STATUS_LABELS.unknown);
+        }
+
+        if (state.lastRunAt) {
+            const formatted = formatMonitorLastRun(state.lastRunAt);
+            if (formatted) {
+                lastRunLabel = '\u05d1\u05d3\u05d9\u05e7\u05d4 \u05d0\u05d7\u05e8\u05d5\u05e0\u05d4: ' + formatted;
+            }
+        }
+
+        if (Array.isArray(state.failures) && state.failures.length) {
+            const failureNames = state.failures.map(entry => {
+                if (!entry) return '\u05d1\u05d3\u05d9\u05e7\u05d4';
+                if (typeof entry === 'string') return entry;
+                if (typeof entry === 'object') {
+                    if (entry.name) return entry.name;
+                    if (entry.id) return entry.id;
+                }
+                return '\u05d1\u05d3\u05d9\u05e7\u05d4';
+            });
+            tooltipLines.push('\u05d1\u05d3\u05d9\u05e7\u05d5\u05ea \u05e9\u05e0\u05db\u05e9\u05dc\u05d5: ' + failureNames.join(', '));
+        }
+    }
+
+    indicatorEl.classList.remove(...MONITOR_STATUS_CLASSES);
+    indicatorEl.classList.add('monitor-' + status);
+    indicatorEl.title = tooltipLines.join('\n');
+
+    if (lastRunEl) {
+        lastRunEl.textContent = lastRunLabel;
+    }
+}
+
+function formatMonitorLastRun(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+    return date.toLocaleString('he-IL', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
 function isPlainObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -210,6 +319,8 @@ function renderProjects(projects) {
     container.innerHTML = ""; // ניקוי תוכן קיים
     
     const noProjectsMessage = document.getElementById("no-projects-message");
+    const monitorUIEnabled = isMonitorUIEnabled();
+
     
     if (!projects || projects.length === 0) {
         if (noProjectsMessage) {
@@ -236,7 +347,6 @@ function renderProjects(projects) {
             fieldsHTML += `<p class="card-text"><strong>${fieldName}:</strong> ${fieldValue}</p>`;
         }
 
-        const statusIndicator = `<div class="status-indicator" data-index="${index}" style="background-color: white;" title="לא נבדק"></div>`;
 
         card.innerHTML = `
         <div class="card-body">
@@ -260,6 +370,12 @@ function renderProjects(projects) {
         }
 
         container.appendChild(card);
+        if (monitorUIEnabled) {
+
+            decorateCardWithMonitorStatus(card, project, index);
+
+        }
+
     });
 }
 

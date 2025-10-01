@@ -469,3 +469,79 @@ body.connection-lost {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
+.card.monitor-ui-enabled {
+    position: relative;
+}
+
+.card.monitor-ui-enabled .card-status-bar {
+    margin-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: rgba(0, 0, 0, 0.7);
+}
+
+body.dark .card.monitor-ui-enabled .card-status-bar {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.card.monitor-ui-enabled .status-indicator {
+    position: static;
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #ffffff;
+    border: 1.5px solid #0fb9c8;
+    box-shadow: none;
+}
+
+body.dark .card.monitor-ui-enabled .status-indicator {
+    background-color: var(--card-bg);
+    border-color: #4dd0e1;
+}
+
+.card.monitor-ui-enabled .status-indicator-url {
+    border-color: #4dd0e1;
+}
+
+.card.monitor-ui-enabled .status-indicator-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.card.monitor-ui-enabled .monitor-indicator {
+    border-color: #bdbdbd;
+}
+
+.card.monitor-ui-enabled .monitor-indicator.monitor-pass {
+    background-color: #25c06d;
+    border-color: #25c06d;
+}
+
+.card.monitor-ui-enabled .monitor-indicator.monitor-partial {
+    background-color: #f5a623;
+    border-color: #f5a623;
+}
+
+.card.monitor-ui-enabled .monitor-indicator.monitor-fail {
+    background-color: #ff4f62;
+    border-color: #ff4f62;
+}
+
+.card.monitor-ui-enabled .monitor-indicator.monitor-unknown {
+    background-color: #e0e0e0;
+    border-color: #bdbdbd;
+}
+
+.card.monitor-ui-enabled .monitor-last-run {
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+body.dark .card.monitor-ui-enabled .monitor-last-run {
+    color: rgba(255, 255, 255, 0.75);
+}
