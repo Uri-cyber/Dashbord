@@ -38,6 +38,34 @@ function createDefaultMonitor() {
     return JSON.parse(monitorTemplateJSON);
 }
 
+const ENABLE_MONITOR_UI_KEY = 'enableMonitorUI';
+
+function isMonitorUIEnabled() {
+    try {
+        const stored = localStorage.getItem(ENABLE_MONITOR_UI_KEY);
+        if (stored === null) {
+            return false;
+        }
+        return stored === 'true';
+    } catch (error) {
+        console.warn('Failed to read enableMonitorUI flag:', error);
+        return false;
+    }
+}
+
+function setMonitorUIEnabled(value) {
+    try {
+        localStorage.setItem(ENABLE_MONITOR_UI_KEY, value ? 'true' : 'false');
+    } catch (error) {
+        console.warn('Failed to persist enableMonitorUI flag:', error);
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.setMonitorUIEnabled = setMonitorUIEnabled;
+    window.isMonitorUIEnabled = isMonitorUIEnabled;
+}
+
 function isPlainObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
 }
