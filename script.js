@@ -175,6 +175,140 @@ function formatMonitorLastRun(value) {
     });
 }
 
+const monitorTabsState = new WeakMap();
+function activateMonitorTab(container, tab) {
+    const state = monitorTabsState.get(container);
+    if (!state || !tab) return;
+    const targetId = tab.getAttribute('aria-controls');
+    if (!targetId) return;
+    state.tabs.forEach((candidate) => {
+        const isActive = candidate === tab;
+        candidate.classList.toggle('is-active', isActive);
+        candidate.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        candidate.setAttribute('tabindex', isActive ? '0' : '-1');
+    });
+    state.panels.forEach((panel) => {
+        const isActivePanel = panel.id === targetId;
+        panel.classList.toggle('is-active', isActivePanel);
+        panel.hidden = !isActivePanel;
+        panel.setAttribute('tabindex', isActivePanel ? '0' : '-1');
+        if (isActivePanel) {
+            panel.setAttribute('aria-labelledby', tab.id);
+        }
+    });
+    container.dataset.activeTab = tab.id;
+}
+function setupMonitorTabs(container) {
+    if (!container) return;
+    teardownMonitorTabs(container);
+    const tablist = container.querySelector('.monitor-tablist');
+    const tabs = tablist ? Array.from(tablist.querySelectorAll('.monitor-tab')) : [];
+    const panels = Array.from(container.querySelectorAll('.monitor-panel'));
+    if (!tablist || !tabs.length || !panels.length) return;
+    tablist.setAttribute('role', 'tablist');
+    if (!tablist.getAttribute('aria-orientation')) {
+        tablist.setAttribute('aria-orientation', 'horizontal');
+    }
+    tabs.forEach((tab, index) => {
+        if (!tab.id) {
+            tab.id = 'monitor-tab-' + index;
+        }
+        const controls = tab.getAttribute('aria-controls') || tab.dataset.monitorTarget;
+        if (controls) {
+            tab.setAttribute('aria-controls', controls);
+        }
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('aria-selected', 'false');
+        tab.setAttribute('tabindex', '-1');
+        tab.classList.remove('is-active');
+    });
+    panels.forEach((panel, index) => {
+        if (!panel.id) {
+            panel.id = 'monitor-panel-' + index;
+        }
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('tabindex', '-1');
+        panel.hidden = true;
+        panel.classList.remove('is-active');
+        if (!panel.getAttribute('aria-labelledby')) {
+            const owner = tabs.find((tab) => tab.getAttribute('aria-controls') === panel.id);
+            if (owner) {
+                panel.setAttribute('aria-labelledby', owner.id);
+            }
+        }
+    });
+    const state = {
+        tabs,
+        panels,
+        handleClick: (event) => {
+            event.preventDefault();
+            const targetTab = event.currentTarget;
+            activateMonitorTab(container, targetTab);
+        },
+        handleKeydown: (event) => {
+            const key = event.key;
+            const currentTab = event.currentTarget;
+            if (key === 'Enter' || key === ' ' || key === 'Spacebar' || key === 'Space') {
+                event.preventDefault();
+                activateMonitorTab(container, currentTab);
+                return;
+            }
+            let direction = 0;
+            if (key === 'ArrowRight' || key === 'ArrowDown') {
+                direction = 1;
+            } else if (key === 'ArrowLeft' || key === 'ArrowUp') {
+                direction = -1;
+            }
+            if (direction !== 0) {
+                event.preventDefault();
+                const currentIndex = tabs.indexOf(currentTab);
+                if (currentIndex === -1) return;
+                const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
+                tabs[nextIndex].focus();
+            }
+        }
+    };
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', state.handleClick);
+        tab.addEventListener('keydown', state.handleKeydown);
+    });
+    monitorTabsState.set(container, state);
+    container.dataset.tabsMounted = 'true';
+}
+function resetMonitorTabs(container) {
+    if (!container) return;
+    const state = monitorTabsState.get(container);
+    if (!state) return;
+    const defaultTab = state.tabs.find((tab) => tab.dataset.defaultTab === 'true') || state.tabs[0];
+    if (defaultTab) {
+        activateMonitorTab(container, defaultTab);
+    }
+}
+function teardownMonitorTabs(container) {
+    if (!container) return;
+    const state = monitorTabsState.get(container);
+    const tabs = state ? state.tabs : Array.from(container.querySelectorAll('.monitor-tab'));
+    const panels = state ? state.panels : Array.from(container.querySelectorAll('.monitor-panel'));
+    if (state) {
+        tabs.forEach((tab) => {
+            tab.removeEventListener('click', state.handleClick);
+            tab.removeEventListener('keydown', state.handleKeydown);
+        });
+        monitorTabsState.delete(container);
+    }
+    tabs.forEach((tab) => {
+        tab.classList.remove('is-active');
+        tab.setAttribute('aria-selected', 'false');
+        tab.setAttribute('tabindex', '-1');
+    });
+    panels.forEach((panel) => {
+        panel.classList.remove('is-active');
+        panel.hidden = true;
+        panel.setAttribute('tabindex', '-1');
+    });
+    delete container.dataset.activeTab;
+    delete container.dataset.tabsMounted;
+}
 function isPlainObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -389,6 +523,19 @@ function openEditModal(index) {
 
     currentProjectIndex = index;
     const project = projectsData[index];
+    const monitorUIEnabled = isMonitorUIEnabled();
+
+    const monitorTabsContainer = document.getElementById("monitor-tabs");
+    if (monitorTabsContainer) {
+        if (monitorUIEnabled) {
+            monitorTabsContainer.hidden = false;
+            setupMonitorTabs(monitorTabsContainer);
+            resetMonitorTabs(monitorTabsContainer);
+        } else {
+            teardownMonitorTabs(monitorTabsContainer);
+            monitorTabsContainer.hidden = true;
+        }
+    }
 
     const editName = document.getElementById("edit-name");
     if (editName) {
@@ -434,6 +581,11 @@ function closeEditModal() {
     const modal = document.getElementById("edit-modal");
     if (modal) {
         modal.style.display = "none";
+    }
+    const monitorTabsContainer = document.getElementById("monitor-tabs");
+    if (monitorTabsContainer) {
+        teardownMonitorTabs(monitorTabsContainer);
+        monitorTabsContainer.hidden = true;
     }
 }
 

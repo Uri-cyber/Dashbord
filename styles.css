@@ -545,3 +545,161 @@ body.dark .card.monitor-ui-enabled .status-indicator {
 body.dark .card.monitor-ui-enabled .monitor-last-run {
     color: rgba(255, 255, 255, 0.75);
 }
+.monitor-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.monitor-tablist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.monitor-tab {
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--header-bg);
+    background: transparent;
+    color: var(--header-bg);
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.monitor-tab.is-active {
+    background: var(--header-bg);
+    color: #ffffff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.monitor-tab:focus-visible {
+    outline: 2px solid var(--header-bg);
+    outline-offset: 2px;
+}
+
+body.dark .monitor-tab {
+    border-color: #6f86ff;
+    color: #d6e4ff;
+}
+
+body.dark .monitor-tab.is-active {
+    background: #6f86ff;
+    color: #0b1337;
+}
+
+body.dark .monitor-tab:focus-visible {
+    outline-color: #6f86ff;
+}
+
+.monitor-panels {
+    width: 100%;
+}
+
+.monitor-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.monitor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+}
+
+.monitor-basic-fields label,
+.monitor-grid label,
+.monitor-panel label {
+    font-weight: 600;
+}
+
+.monitor-basic-fields input,
+.monitor-grid input,
+.monitor-grid select,
+.monitor-grid textarea,
+.monitor-panel input,
+.monitor-panel select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    font-size: 0.95rem;
+}
+
+body.dark .monitor-basic-fields input,
+body.dark .monitor-grid input,
+body.dark .monitor-grid select,
+body.dark .monitor-grid textarea,
+body.dark .monitor-panel input,
+body.dark .monitor-panel select {
+    background: var(--card-bg);
+    color: var(--text-color);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.monitor-grid textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.monitor-checkbox-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.monitor-warning {
+    font-size: 0.85rem;
+    color: #c0392b;
+}
+
+body.dark .monitor-warning {
+    color: #ff7675;
+}
+
+.monitor-tests-placeholder {
+    border: 1px dashed rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    color: rgba(0, 0, 0, 0.6);
+}
+
+body.dark .monitor-tests-placeholder {
+    border-color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.monitor-ghost-button {
+    margin-top: 8px;
+    border: 1px dashed var(--header-bg);
+    background: transparent;
+    color: var(--header-bg);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+body.dark .monitor-ghost-button {
+    border-color: #6f86ff;
+    color: #d6e4ff;
+}
+
+@media (max-width: 768px) {
+    .monitor-tablist {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+    .monitor-tab {
+        width: 100%;
+    }
+    .monitor-grid {
+        grid-template-columns: 1fr;
+    }
+}
+

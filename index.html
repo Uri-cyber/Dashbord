@@ -26,13 +26,97 @@
                 <span class="close-button" onclick="closeEditModal()">&times;</span>
                 <h2>עריכת כרטיס</h2>
                 <form id="edit-form">
-                    <label for="edit-name">שם פרויקט</label>
-                    <input type="text" id="edit-name" name="name">
-                    <label for="edit-url">כתובת אתר (URL):</label>
-                    <input type="url" id="edit-url" name="url" placeholder="https://example.com">
+                    <div class="monitor-basic-fields">
+                        <label for="edit-name">שם פרויקט</label>
+                        <input type="text" id="edit-name" name="name">
+                        <label for="edit-url">כתובת אתר (URL):</label>
+                        <input type="url" id="edit-url" name="url" placeholder="https://example.com">
 
-                    <div id="edit-fields-container"></div>
-        
+                        <div id="edit-fields-container"></div>
+                    </div>
+
+                    <div id="monitor-tabs" class="monitor-tabs" data-monitor-ui="true" hidden>
+                        <div class="monitor-tablist" role="tablist" aria-orientation="horizontal">
+                            <button type="button" class="monitor-tab is-active" id="monitor-tab-api-auth" role="tab" aria-selected="true" aria-controls="monitor-panel-api-auth" data-default-tab="true">
+                                API &amp; Auth
+                            </button>
+                            <button type="button" class="monitor-tab" id="monitor-tab-tests" role="tab" aria-selected="false" aria-controls="monitor-panel-tests">
+                                ×‘×“×™×§×•×ª
+                            </button>
+                            <button type="button" class="monitor-tab" id="monitor-tab-schedule" role="tab" aria-selected="false" aria-controls="monitor-panel-schedule">
+                                ×ª×–×ž×•×Ÿ
+                            </button>
+                        </div>
+                        <div class="monitor-panels">
+                            <section class="monitor-panel is-active" id="monitor-panel-api-auth" role="tabpanel" aria-labelledby="monitor-tab-api-auth" tabindex="0">
+                                <div class="monitor-grid">
+                                    <label for="monitor-base-url">Base URL</label>
+                                    <input type="url" id="monitor-base-url" placeholder="https://example.com/api">
+
+                                    <label class="monitor-checkbox-line">
+                                        <input type="checkbox" id="monitor-login-enabled">
+                                        <span>Enable Login Flow</span>
+                                    </label>
+
+                                    <label for="monitor-login-path">Login Path</label>
+                                    <input type="text" id="monitor-login-path" placeholder="/auth/login">
+
+                                    <label for="monitor-login-method">Login Method</label>
+                                    <select id="monitor-login-method">
+                                        <option value="POST">POST</option>
+                                        <option value="GET">GET</option>
+                                        <option value="PUT">PUT</option>
+                                        <option value="PATCH">PATCH</option>
+                                        <option value="DELETE">DELETE</option>
+                                    </select>
+
+                                    <label for="monitor-login-username">Username</label>
+                                    <input type="text" id="monitor-login-username" autocomplete="off">
+
+                                    <label for="monitor-login-password">Password</label>
+                                    <input type="password" id="monitor-login-password" autocomplete="off">
+
+                                    <label for="monitor-login-body">Body Template</label>
+                                    <textarea id="monitor-login-body" rows="4"></textarea>
+
+                                    <label for="monitor-token-location">Token Location</label>
+                                    <select id="monitor-token-location">
+                                        <option value="json:token">JSON Path (e.g., data.token)</option>
+                                        <option value="header:Authorization">Response Header</option>
+                                    </select>
+
+                                    <label for="monitor-token-header">Token Header Name</label>
+                                    <input type="text" id="monitor-token-header" placeholder="Authorization">
+
+                                    <label for="monitor-token-prefix">Token Prefix</label>
+                                    <input type="text" id="monitor-token-prefix" placeholder="Bearer ">
+
+                                    <label class="monitor-checkbox-line">
+                                        <input type="checkbox" id="monitor-persist-password" checked>
+                                        <span>Persist password locally (non-production only)</span>
+                                    </label>
+                                </div>
+                                <p class="monitor-warning">âš ï¸ ×©×ž×™×¨×ª ×”×§×¨×“× ×¦×™××œ×¡ ×ž×ª×‘×¦×¢×ª ×‘×“×¤×“×¤×Ÿ ×‘×œ×‘×“ ×•×ž×©×ž×©×ª ×œ×¡×‘×™×‘×•×ª ×‘×“×™×§×”.</p>
+                            </section>
+                            <section class="monitor-panel" id="monitor-panel-tests" role="tabpanel" aria-labelledby="monitor-tab-tests" tabindex="-1" hidden>
+                                <div class="monitor-tests-placeholder">
+                                    <p>×˜×‘×œ×ª ×‘×“×™×§×•×ª ×ª×•×¦×’ ×›××Ÿ ×‘×©×œ×‘ ×”×‘×.</p>
+                                    <button type="button" class="monitor-ghost-button" disabled>âž• ×”×•×¡×£ ×‘×“×™×§×”</button>
+                                </div>
+                            </section>
+                            <section class="monitor-panel" id="monitor-panel-schedule" role="tabpanel" aria-labelledby="monitor-tab-schedule" tabindex="-1" hidden>
+                                <label class="monitor-checkbox-line">
+                                    <input type="checkbox" id="monitor-schedule-enabled">
+                                    <span>Enable automatic schedule</span>
+                                </label>
+                                <label for="monitor-schedule-interval">Interval (seconds)</label>
+                                <input type="number" id="monitor-schedule-interval" min="30" max="3600" step="30">
+                                <button type="button" class="monitor-ghost-button" disabled>â–¶ï¸ Run Now (Coming Soon)</button>
+                            </section>
+                        </div>
+                    </div>
+
+
                     <button type="button" onclick="saveEdit()">שמור</button>
                 </form>
             </div>
