@@ -661,7 +661,7 @@ body.dark .monitor-warning {
     color: #ff7675;
 }
 
-.monitor-tests-placeholder {
+.monitor-tests-empty {
     border: 1px dashed rgba(0, 0, 0, 0.3);
     border-radius: 8px;
     padding: 12px;
@@ -669,9 +669,101 @@ body.dark .monitor-warning {
     color: rgba(0, 0, 0, 0.6);
 }
 
-body.dark .monitor-tests-placeholder {
+body.dark .monitor-tests-empty {
     border-color: rgba(255, 255, 255, 0.3);
     color: rgba(255, 255, 255, 0.65);
+}
+
+.monitor-tests-list {
+    display: grid;
+    gap: 12px;
+}
+
+.monitor-test-card {
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
+    padding: 12px;
+    background: #ffffff;
+}
+
+body.dark .monitor-test-card {
+    border-color: rgba(255, 255, 255, 0.22);
+    background: rgba(28, 34, 49, 0.6);
+}
+
+.monitor-test-card__title {
+    margin: 0 0 6px 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.monitor-test-card__field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.monitor-test-card__label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(0, 0, 0, 0.6);
+}
+
+body.dark .monitor-test-card__label {
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.monitor-test-card__value {
+    font-size: 0.95rem;
+    word-break: break-word;
+}
+
+.monitor-test-card__value--multiline {
+    white-space: pre-wrap;
+}
+
+.monitor-helper {
+    font-size: 0.85rem;
+    color: rgba(0, 0, 0, 0.65);
+    margin-top: -4px;
+    margin-bottom: 0;
+}
+
+body.dark .monitor-helper {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.monitor-schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.monitor-panel select[disabled] {
+    background-color: rgba(0, 0, 0, 0.03);
+    color: inherit;
+    cursor: default;
+}
+
+body.dark .monitor-panel select[disabled] {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.monitor-grid input[readonly],
+.monitor-panel input[readonly],
+.monitor-grid textarea[readonly],
+.monitor-panel textarea[readonly] {
+    background-color: rgba(0, 0, 0, 0.03);
+    cursor: default;
+}
+
+body.dark .monitor-grid input[readonly],
+body.dark .monitor-panel input[readonly],
+body.dark .monitor-grid textarea[readonly],
+body.dark .monitor-panel textarea[readonly] {
+    background-color: rgba(255, 255, 255, 0.08);
 }
 
 .monitor-ghost-button {

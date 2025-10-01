@@ -5,6 +5,11 @@
 - ×‘×•×¦×¢ ×ž×™×ž×•×© ×œ×©×•×× ×™×•×ª API/Auth/Tests/Schedule ×‘×ž×•×“×œ ×”×¢×¨×™×›×” ×ž××—×•×¨×™ ×”×“×’×œ enableMonitorUI, ×›×•×œ×œ ×›×œ×œ ×‘×ø×™×¨×ª ×ž×—×“×œ, roles/ARIA ×å×ú×ž×™×ë×ª ×î×§×œ×“×ª.
 - ×¢×“×›× ×œ×¡×’× ×•××•×ª ×”×œ×©×•×× ×™×•×ª ×•×ª×™××•× ×©×”×ž×—×¨××•×ª (.monitor-tab, .monitor-panel) ×œ×œ×©×ž×¨ ×”×•×¨××–×•×¨×™×§×” ×”×—×“×©× כר×’×¨×§×ª ××‘×¨×™×™ ×ž×ª× ×˜×ˆ×•×˜ ×•×¤×”×œ×ª ×�×�×™×¡×ª ×”×œ×™×©×˜×¢ ×“×•×—×” ×’×�×‘ ×œ××¤×˜×¨.
 
+### Slice 4 - Read-only binding
+- Added read-only monitor tab content behind the `enableMonitorUI` flag, including token/login helpers and schedule fields populated from `project.monitor`.
+- Rendered monitor tests as safe DOM cards with headers/body/status metadata only when data exists, while keeping the empty state message when the array is missing.
+- Styled helpers, read-only controls, and responsive grid updates for dark mode/RTL without enabling any save or external network side effects.
+
 ## 2025-09-30
 
 ### עדכון מודל נתונים

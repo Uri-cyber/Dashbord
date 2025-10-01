@@ -25,6 +25,10 @@
             <div class="modal-content">
                 <span class="close-button" onclick="closeEditModal()">&times;</span>
                 <h2>עריכת כרטיס</h2>
+                <div class="monitor-edit-header" id="monitor-edit-header" hidden>
+                    <span class="monitor-mode-badge" id="monitor-mode-badge">Read-only mode</span>
+                    <button type="button" id="monitor-edit-toggle" class="monitor-edit-toggle">Edit monitor (behind flag)</button>
+                </div>
                 <form id="edit-form">
                     <div class="monitor-basic-fields">
                         <label for="edit-name">שם פרויקט</label>
@@ -35,7 +39,8 @@
                         <div id="edit-fields-container"></div>
                     </div>
 
-                    <div id="monitor-tabs" class="monitor-tabs" data-monitor-ui="true" hidden>
+
+                    <div id="monitor-tabs" class="monitor-tabs" data-monitor-ui="true" data-monitor-readonly="true" hidden>
                         <div class="monitor-tablist" role="tablist" aria-orientation="horizontal">
                             <button type="button" class="monitor-tab is-active" id="monitor-tab-api-auth" role="tab" aria-selected="true" aria-controls="monitor-panel-api-auth" data-default-tab="true">
                                 API &amp; Auth
@@ -52,15 +57,12 @@
                                 <div class="monitor-grid">
                                     <label for="monitor-base-url">Base URL</label>
                                     <input type="url" id="monitor-base-url" placeholder="https://example.com/api">
-
                                     <label class="monitor-checkbox-line">
                                         <input type="checkbox" id="monitor-login-enabled">
                                         <span>Enable Login Flow</span>
                                     </label>
-
                                     <label for="monitor-login-path">Login Path</label>
                                     <input type="text" id="monitor-login-path" placeholder="/auth/login">
-
                                     <label for="monitor-login-method">Login Method</label>
                                     <select id="monitor-login-method">
                                         <option value="POST">POST</option>
@@ -69,56 +71,59 @@
                                         <option value="PATCH">PATCH</option>
                                         <option value="DELETE">DELETE</option>
                                     </select>
-
                                     <label for="monitor-login-username">Username</label>
                                     <input type="text" id="monitor-login-username" autocomplete="off">
-
                                     <label for="monitor-login-password">Password</label>
                                     <input type="password" id="monitor-login-password" autocomplete="off">
-
                                     <label for="monitor-login-body">Body Template</label>
                                     <textarea id="monitor-login-body" rows="4"></textarea>
-
                                     <label for="monitor-token-location">Token Location</label>
                                     <select id="monitor-token-location">
                                         <option value="json:token">JSON Path (e.g., data.token)</option>
                                         <option value="header:Authorization">Response Header</option>
                                     </select>
-
+                                    <p class="monitor-helper monitor-helper-token">Use json:path.to.token or header:Authorization.</p>
                                     <label for="monitor-token-header">Token Header Name</label>
                                     <input type="text" id="monitor-token-header" placeholder="Authorization">
-
                                     <label for="monitor-token-prefix">Token Prefix</label>
                                     <input type="text" id="monitor-token-prefix" placeholder="Bearer ">
-
                                     <label class="monitor-checkbox-line">
-                                        <input type="checkbox" id="monitor-persist-password" checked>
+                                        <input type="checkbox" id="monitor-persist-password">
                                         <span>Persist password locally (non-production only)</span>
                                     </label>
                                 </div>
-                                <p class="monitor-warning">Credentials are stored locally for non-production testing only.</p>
+                                <p class="monitor-warning">Credentials are stored locally (browser storage). For non-production use only.</p>
                             </section>
                             <section class="monitor-panel" id="monitor-panel-tests" role="tabpanel" aria-labelledby="monitor-tab-tests" tabindex="-1" hidden>
-                                <div class="monitor-tests-placeholder">
-                                    <p>Test table will appear here in a later slice.</p>
-                                    <button type="button" class="monitor-ghost-button" disabled>Add test</button>
+                                <div id="monitor-tests-empty" class="monitor-tests-empty">
+                                    <p>No tests configured for this project yet.</p>
                                 </div>
+                                <div id="monitor-tests-list" class="monitor-tests-list" hidden></div>
+                                <div id="monitor-tests-editor" class="monitor-tests-editor" hidden></div>
+                                <div class="monitor-tests-controls" id="monitor-tests-controls" hidden>
+                                    <button type="button" class="monitor-ghost-button monitor-tests-add" id="monitor-tests-add-button">Add test</button>
+                                </div>
+                                <p class="monitor-helper monitor-helper-headers">Enter headers as key:value, one per line.</p>
                             </section>
                             <section class="monitor-panel" id="monitor-panel-schedule" role="tabpanel" aria-labelledby="monitor-tab-schedule" tabindex="-1" hidden>
-                                <label class="monitor-checkbox-line">
-                                    <input type="checkbox" id="monitor-schedule-enabled">
-                                    <span>Enable automatic schedule</span>
-                                </label>
-                                <label for="monitor-schedule-interval">Interval (seconds)</label>
-                                <input type="number" id="monitor-schedule-interval" min="30" max="3600" step="30">
+                                <div class="monitor-schedule-grid">
+                                    <label class="monitor-checkbox-line">
+                                        <input type="checkbox" id="monitor-schedule-enabled">
+                                        <span>Enable automatic schedule</span>
+                                    </label>
+                                    <label for="monitor-schedule-interval">Interval (seconds)</label>
+                                    <input type="number" id="monitor-schedule-interval" min="30" max="3600" step="30">
+                                </div>
                                 <button type="button" class="monitor-ghost-button" disabled>Run Now (Coming Soon)</button>
                             </section>
                         </div>
                     </div>
 
-
-
-                    <button type="button" onclick="saveEdit()">שמור</button>
+                    <div class="modal-actions">
+                        <button type="button" id="monitor-save-button" class="modal-primary-button" hidden>Save (behind flag)</button>
+                        <button type="button" id="monitor-cancel-button" class="modal-secondary-button" hidden>Cancel</button>
+                        <button type="button" id="edit-form-save-button" onclick="saveEdit()">שמור</button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -174,3 +179,9 @@
     <script src="script.js"></script>
 </body>
 </html>
+
+
+
+
+
+

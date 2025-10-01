@@ -309,6 +309,279 @@ function teardownMonitorTabs(container) {
     delete container.dataset.activeTab;
     delete container.dataset.tabsMounted;
 }
+
+const MONITOR_EMPTY_VALUE = 'Not set';
+const MONITOR_KNOWN_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+
+function getMonitorField(id) {
+    return document.getElementById(id);
+}
+
+function enforceMonitorReadonlyState() {
+    const textIds = ['monitor-base-url', 'monitor-login-path', 'monitor-login-username', 'monitor-login-password', 'monitor-token-header', 'monitor-token-prefix', 'monitor-schedule-interval'];
+    textIds.forEach((id) => {
+        const field = getMonitorField(id);
+        if (field) {
+            field.readOnly = true;
+            field.setAttribute('aria-readonly', 'true');
+        }
+    });
+    const textarea = getMonitorField('monitor-login-body');
+    if (textarea) {
+        textarea.readOnly = true;
+        textarea.setAttribute('aria-readonly', 'true');
+    }
+    const selectIds = ['monitor-login-method', 'monitor-token-location'];
+    selectIds.forEach((id) => {
+        const select = getMonitorField(id);
+        if (select) {
+            select.disabled = true;
+            select.setAttribute('aria-disabled', 'true');
+            select.tabIndex = -1;
+        }
+    });
+    const checkboxIds = ['monitor-login-enabled', 'monitor-persist-password', 'monitor-schedule-enabled'];
+    checkboxIds.forEach((id) => {
+        const checkbox = getMonitorField(id);
+        if (checkbox) {
+            checkbox.disabled = true;
+            checkbox.setAttribute('aria-disabled', 'true');
+        }
+    });
+}
+
+function setMonitorTextValue(id, value) {
+    const field = getMonitorField(id);
+    if (!field) return;
+    if (value === null || value === undefined) {
+        field.value = '';
+        return;
+    }
+    if (typeof value === 'string') {
+        field.value = value;
+        return;
+    }
+    field.value = String(value);
+}
+
+function setMonitorTextareaValue(id, value) {
+    const field = getMonitorField(id);
+    if (!field) return;
+    if (value === null || value === undefined) {
+        field.value = '';
+        return;
+    }
+    field.value = String(value);
+}
+
+function setMonitorCheckboxValue(id, value) {
+    const field = getMonitorField(id);
+    if (!field) return;
+    field.checked = Boolean(value);
+}
+
+function setMonitorSelectValue(id, value) {
+    const select = getMonitorField(id);
+    if (!select) return;
+    Array.from(select.querySelectorAll('option[data-custom-option="true"]')).forEach((option) => option.remove());
+    let normalized = '';
+    if (typeof value === 'string') {
+        normalized = value;
+    } else if (value !== null && value !== undefined) {
+        normalized = String(value);
+    }
+    if (normalized) {
+        const hasOption = Array.from(select.options).some((option) => option.value === normalized);
+        if (!hasOption) {
+            const option = document.createElement('option');
+            option.value = normalized;
+            option.textContent = normalized;
+            option.dataset.customOption = 'true';
+            select.appendChild(option);
+        }
+        select.value = normalized;
+    } else if (select.options.length > 0) {
+        select.selectedIndex = 0;
+    } else {
+        select.value = '';
+    }
+}
+
+function clearMonitorTabs() {
+    const textIds = ['monitor-base-url', 'monitor-login-path', 'monitor-login-username', 'monitor-login-password', 'monitor-token-header', 'monitor-token-prefix', 'monitor-schedule-interval'];
+    textIds.forEach((id) => {
+        const field = getMonitorField(id);
+        if (field) {
+            field.value = '';
+        }
+    });
+    const textarea = getMonitorField('monitor-login-body');
+    if (textarea) {
+        textarea.value = '';
+    }
+    const selectIds = ['monitor-login-method', 'monitor-token-location'];
+    selectIds.forEach((id) => {
+        const select = getMonitorField(id);
+        if (!select) return;
+        Array.from(select.querySelectorAll('option[data-custom-option="true"]')).forEach((option) => option.remove());
+        if (select.options.length > 0) {
+            select.selectedIndex = 0;
+        } else {
+            select.value = '';
+        }
+    });
+    const checkboxIds = ['monitor-login-enabled', 'monitor-persist-password', 'monitor-schedule-enabled'];
+    checkboxIds.forEach((id) => {
+        const checkbox = getMonitorField(id);
+        if (checkbox) {
+            checkbox.checked = false;
+        }
+    });
+    const testsList = getMonitorField('monitor-tests-list');
+    if (testsList) {
+        while (testsList.firstChild) {
+            testsList.removeChild(testsList.firstChild);
+        }
+        testsList.hidden = true;
+    }
+    const emptyState = getMonitorField('monitor-tests-empty');
+    if (emptyState) {
+        emptyState.hidden = false;
+    }
+}
+
+function formatMonitorBoolean(value) {
+    return value ? 'Yes' : 'No';
+}
+
+function normalizeMonitorString(value) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number') return String(value);
+    return '';
+}
+
+function formatMonitorExpectedStatus(value) {
+    if (Array.isArray(value)) {
+        const parts = value.map((item) => normalizeMonitorString(item)).filter(Boolean);
+        return parts.join(',');
+    }
+    return normalizeMonitorString(value);
+}
+
+function formatMonitorHeaders(headers) {
+    if (!headers) return '';
+    if (Array.isArray(headers)) {
+        const lines = headers.map((entry) => {
+            if (!entry) return '';
+            if (typeof entry === 'string') {
+                return entry.trim();
+            }
+            if (typeof entry === 'object') {
+                return Object.entries(entry)
+                    .map(([key, val]) => `${String(key)}:${val === undefined || val === null ? '' : String(val)}`)
+                    .join('\n');
+            }
+            return '';
+        }).filter(Boolean);
+        return lines.join('\n');
+    }
+    if (typeof headers === 'object') {
+        return Object.entries(headers)
+            .map(([key, val]) => `${String(key)}:${val === undefined || val === null ? '' : String(val)}`)
+            .join('\n');
+    }
+    return String(headers);
+}
+
+function appendMonitorTestField(card, label, value, options) {
+    const field = document.createElement('div');
+    field.className = 'monitor-test-card__field';
+    if (options && options.multiline) {
+        field.classList.add('monitor-test-card__field--multiline');
+    }
+    const labelEl = document.createElement('span');
+    labelEl.className = 'monitor-test-card__label';
+    labelEl.textContent = label;
+    const valueEl = document.createElement('div');
+    valueEl.className = 'monitor-test-card__value';
+    if (options && options.multiline) {
+        valueEl.classList.add('monitor-test-card__value--multiline');
+    }
+    valueEl.textContent = value || MONITOR_EMPTY_VALUE;
+    field.appendChild(labelEl);
+    field.appendChild(valueEl);
+    card.appendChild(field);
+}
+
+function renderMonitorTests(tests) {
+    const list = getMonitorField('monitor-tests-list');
+    const emptyState = getMonitorField('monitor-tests-empty');
+    if (!list || !emptyState) return;
+    while (list.firstChild) {
+        list.removeChild(list.firstChild);
+    }
+    if (!Array.isArray(tests) || tests.length === 0) {
+        list.hidden = true;
+        emptyState.hidden = false;
+        return;
+    }
+    emptyState.hidden = true;
+    list.hidden = false;
+    tests.forEach((test, index) => {
+        const card = document.createElement('article');
+        card.className = 'monitor-test-card';
+        const title = document.createElement('h4');
+        title.className = 'monitor-test-card__title';
+        const name = normalizeMonitorString(test && test.name);
+        title.textContent = name || `Test ${index + 1}`;
+        card.appendChild(title);
+        const methodSource = normalizeMonitorString(test && test.method);
+        const methodCandidate = methodSource ? methodSource.toUpperCase() : '';
+        const methodValue = methodCandidate && MONITOR_KNOWN_METHODS.has(methodCandidate) ? methodCandidate : methodSource;
+        appendMonitorTestField(card, 'Method', methodValue);
+        const path = normalizeMonitorString(test && test.path);
+        appendMonitorTestField(card, 'Path', path);
+        appendMonitorTestField(card, 'Required', formatMonitorBoolean(Boolean(test && test.required)));
+        appendMonitorTestField(card, 'Requires Login', formatMonitorBoolean(Boolean(test && test.requiresLogin)));
+        const expectedStatus = formatMonitorExpectedStatus(test && test.expectedStatus);
+        appendMonitorTestField(card, 'Expected Status', expectedStatus);
+        const bodyTemplate = normalizeMonitorString(test && test.bodyTemplate);
+        appendMonitorTestField(card, 'Body Template', bodyTemplate, { multiline: true });
+        const headersText = formatMonitorHeaders(test && test.headers);
+        appendMonitorTestField(card, 'Headers', headersText, { multiline: true });
+        list.appendChild(card);
+    });
+}
+
+function populateMonitorTabs(project) {
+    enforceMonitorReadonlyState();
+    if (!project || !project.monitor) {
+        clearMonitorTabs();
+        return;
+    }
+    const monitor = project.monitor;
+    const login = monitor.login || {};
+    const schedule = monitor.schedule || {};
+    setMonitorTextValue('monitor-base-url', monitor.baseUrl);
+    setMonitorCheckboxValue('monitor-login-enabled', login.enabled);
+    setMonitorTextValue('monitor-login-path', login.path);
+    const methodSource = normalizeMonitorString(login.method);
+    const methodCandidate = methodSource ? methodSource.toUpperCase() : '';
+    const methodValue = methodCandidate && MONITOR_KNOWN_METHODS.has(methodCandidate) ? methodCandidate : methodSource;
+    setMonitorSelectValue('monitor-login-method', methodValue);
+    setMonitorTextValue('monitor-login-username', login.username);
+    setMonitorTextValue('monitor-login-password', login.password);
+    setMonitorTextareaValue('monitor-login-body', login.bodyTemplate);
+    setMonitorSelectValue('monitor-token-location', normalizeMonitorString(login.tokenLocation));
+    setMonitorTextValue('monitor-token-header', login.tokenHeaderName);
+    setMonitorTextValue('monitor-token-prefix', login.tokenPrefix);
+    setMonitorCheckboxValue('monitor-persist-password', login.persistPassword);
+    renderMonitorTests(Array.isArray(monitor.tests) ? monitor.tests : []);
+    setMonitorCheckboxValue('monitor-schedule-enabled', schedule.enabled);
+    setMonitorTextValue('monitor-schedule-interval', schedule.intervalSec);
+}
+
 function isPlainObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -378,18 +651,16 @@ function ensureMonitorDefaults(projects) {
 
     return changed;
 }
-// Theme Toggle - החלפת ערכת נושא
+// Theme Toggle - toggle app theme
 document.getElementById("toggle-theme").addEventListener("click", () => {
     document.body.classList.toggle("dark");
-    // שמירת העדפת הערכה ב-localStorage
+    // Persist theme preference in localStorage
     const isDarkMode = document.body.classList.contains("dark");
     localStorage.setItem('darkMode', isDarkMode);
 });
 
-// Handle File Upload - טיפול בהעלאת קובץ
 document.getElementById("fileInput").addEventListener("change", handleFileUpload);
 
-// פונקציה לקיצור טקסט ארוך והוספת שלוש נקודות
 function truncateText(text, maxLength = 20) {
     if (!text) return "";
     const t = (text.length <= maxLength) ? text : (text.substring(0, maxLength) + "...");
@@ -407,7 +678,6 @@ function escapeHTML(str) {
         .replace(/'/g, "&#39;");
 }
 
-// רינדור של הפריטים בטיקר
 function renderHotItems() {
     const hotTicker = document.getElementById("hot-items-ticker");
     if (!hotTicker || !projectsData.length) return;
@@ -416,7 +686,6 @@ function renderHotItems() {
     hotTicker.textContent = names;
 }
 
-// פונקציה לטיפול בהעלאת קובץ
 function handleFileUpload(event) {
     const file = event.target.files[0];
     if (file) {
@@ -442,7 +711,6 @@ function handleFileUpload(event) {
     }
 }
 
-// פונקציה לרינדור הפרויקטים
 function renderProjects(projects) {
     const container = document.getElementById("projects-container");
     if (!container) {
@@ -450,7 +718,7 @@ function renderProjects(projects) {
         return;
     }
     
-    container.innerHTML = ""; // ניקוי תוכן קיים
+    container.innerHTML = "";
     
     const noProjectsMessage = document.getElementById("no-projects-message");
     const monitorUIEnabled = isMonitorUIEnabled();
@@ -471,7 +739,6 @@ function renderProjects(projects) {
         const card = document.createElement("div");
         card.className = "card";
 
-        // קיצור שם הפרויקט אם הוא ארוך מדי
         const truncatedName = truncateText(project.name, 20);
 
         let fieldsHTML = "";
@@ -513,8 +780,6 @@ function renderProjects(projects) {
     });
 }
 
-// פתיחת מודל עריכה
-// פתיחת מודל עריכה
 function openEditModal(index) {
     if (index < 0 || index >= projectsData.length) {
         alert("מספר פרויקט לא תקין.");
@@ -525,12 +790,14 @@ function openEditModal(index) {
     const project = projectsData[index];
     const monitorUIEnabled = isMonitorUIEnabled();
 
-    const monitorTabsContainer = document.getElementById("monitor-tabs");
+    const monitorTabsContainer = document.getElementById('monitor-tabs');
     if (monitorTabsContainer) {
+        clearMonitorTabs();
         if (monitorUIEnabled) {
             monitorTabsContainer.hidden = false;
             setupMonitorTabs(monitorTabsContainer);
             resetMonitorTabs(monitorTabsContainer);
+            populateMonitorTabs(project);
         } else {
             teardownMonitorTabs(monitorTabsContainer);
             monitorTabsContainer.hidden = true;
@@ -576,22 +843,21 @@ function openEditModal(index) {
     
 }
 
-// סגירת מודל עריכה
 function closeEditModal() {
     const modal = document.getElementById("edit-modal");
     if (modal) {
         modal.style.display = "none";
     }
-    const monitorTabsContainer = document.getElementById("monitor-tabs");
+    const monitorTabsContainer = document.getElementById('monitor-tabs');
     if (monitorTabsContainer) {
+        clearMonitorTabs();
         teardownMonitorTabs(monitorTabsContainer);
         monitorTabsContainer.hidden = true;
     }
 }
 
-// פתיחת מודל הוספה
 function openAddModal() {
-    // הכנת הטופס להוספת פרויקט חדש
+
     const nameInput = document.getElementById("add-name");
     if (nameInput) {
         nameInput.value = "";
@@ -623,7 +889,6 @@ function openAddModal() {
     }
 }
 
-// סגירת מודל הוספה
 function closeAddModal() {
     const modal = document.getElementById("add-modal");
     if (modal) {
@@ -631,7 +896,6 @@ function closeAddModal() {
     }
 }
 
-// פתיחת מודל היסטוריה
 function openHistoryModal() {
     const historyContainer = document.getElementById("history-container");
     if (!historyContainer) {
@@ -644,7 +908,7 @@ function openHistoryModal() {
     } else {
         let historyHTML = "";
         
-        // הצגת ההיסטוריה בסדר הפוך (מהחדש לישן)
+
         for (let i = projectHistory.length - 1; i >= 0; i--) {
             const item = projectHistory[i];
             let typeClass = '';
@@ -671,7 +935,6 @@ function openHistoryModal() {
     }
 }
 
-// סגירת מודל היסטוריה
 function closeHistoryModal() {
     const modal = document.getElementById("history-modal");
     if (modal) {
@@ -679,7 +942,6 @@ function closeHistoryModal() {
     }
 }
 
-// הורדת ה-JSON המעודכן
 function downloadUpdatedJSON() {
     if (projectsData.length === 0) {
         alert("אין נתונים להורדה!");
@@ -694,33 +956,29 @@ function downloadUpdatedJSON() {
     downloadAnchorNode.click();
     document.body.removeChild(downloadAnchorNode);
     
-    // הוספה להיסטוריה
+
     addToHistory("הורדת קובץ", "הורדת נתוני הפרויקטים כקובץ JSON");
 }
 
-// שמירת פרויקט בעריכה
 function saveEdit() {
     if (currentProjectIndex !== null) {
         const project = projectsData[currentProjectIndex];
-        const oldName = project.name; // שמירת השם הישן לרישום בהיסטוריה
+        const oldName = project.name;
         
         const nameInput = document.getElementById("edit-name");
         if (nameInput) {
-            // שמירת שם הפרויקט
+
             project.name = nameInput.value.trim();
         }
 
-        // איסוף כתובת האתר
         const urlInput = document.getElementById("edit-url");
         if (urlInput) {
             project.url = urlInput.value.trim();
         }
 
-        // יצירת מבנה נתונים במקרה שהוא חסר
         if (!project.fieldNames) project.fieldNames = {};
         if (!project.fields) project.fields = {};
 
-        // שמירת שמות השדות והערכים שלהם
         for (let i = 1; i <= 4; i++) {
             const fieldNameInput = document.getElementById(`edit-field-name-${i}`);
             const fieldValueInput = document.getElementById(`edit-field-value-${i}`);
@@ -731,22 +989,19 @@ function saveEdit() {
             }
         }
 
-        // שמירת הנתונים ב-LocalStorage
+        // Persist projects data in localStorage
         localStorage.setItem('projectsData', JSON.stringify(projectsData));
         
-        // הוספה להיסטוריה
+
         addToHistory("עריכה", `עריכת פרויקט: ${oldName} -> ${project.name}`);
 
-        // עדכון התצוגה מחדש
         renderProjects(projectsData);
         renderHotItems();
 
-        // סגירת חלון העריכה
         closeEditModal();
     }
 }
 
-// שמירת פרויקט חדש
 function saveNewProject() {
     const nameInput = document.getElementById("add-name");
     if (!nameInput) {
@@ -761,7 +1016,7 @@ function saveNewProject() {
         return;
     }
     
-    // יצירת אובייקט פרויקט חדש
+
     const newProject = {
         name: projectName,
         fieldNames: {},
@@ -769,7 +1024,7 @@ function saveNewProject() {
         monitor: createDefaultMonitor()
     };
     
-    // איסוף שמות השדות והערכים
+
     for (let i = 1; i <= 4; i++) {
         const fieldNameInput = document.getElementById(`add-field-name-${i}`);
         const fieldValueInput = document.getElementById(`add-field-value-${i}`);
@@ -783,24 +1038,22 @@ function saveNewProject() {
     const urlInput = document.getElementById("add-url");
     newProject.url = urlInput?.value.trim() || "";
 
-    // הוספת הפרויקט למערך הנתונים
     projectsData.push(newProject);
     
-    // שמירת הנתונים ב-LocalStorage
+    // Persist projects data in localStorage
     localStorage.setItem('projectsData', JSON.stringify(projectsData));
     
-    // הוספה להיסטוריה
+
     addToHistory("הוספה", `הוספת פרויקט חדש: ${projectName}`);
     
-    // עדכון התצוגה
+
     renderProjects(projectsData);
     renderHotItems();
     
-    // סגירת חלון ההוספה
+
     closeAddModal();
 }
 
-// אישור מחיקת פרויקט
 function confirmDelete(index) {
     if (index < 0 || index >= projectsData.length) {
         alert("מספר פרויקט לא תקין.");
@@ -810,25 +1063,24 @@ function confirmDelete(index) {
     const projectName = projectsData[index].name;
     
     if (confirm(`האם אתה בטוח שברצונך למחוק את הפרויקט "${projectName}"?`)) {
-        // שמירת שם הפרויקט לפני המחיקה לצורך רישום בהיסטוריה
+
         const deletedProjectName = projectsData[index].name;
         
-        // מחיקת הפרויקט מהמערך
+
         projectsData.splice(index, 1);
         
-        // שמירת הנתונים ב-LocalStorage
+        // Persist projects data in localStorage
         localStorage.setItem('projectsData', JSON.stringify(projectsData));
         
-        // הוספה להיסטוריה
+
         addToHistory("מחיקה", `נמחק פרויקט: ${deletedProjectName}`);
         
-        // עדכון התצוגה
+
         renderProjects(projectsData);
         renderHotItems();
     }
 }
 
-// הוספת אירוע להיסטוריה
 function addToHistory(type, description) {
     const now = new Date();
     const formattedDate = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
@@ -839,30 +1091,29 @@ function addToHistory(type, description) {
         description: description
     };
     
-    // הוספת האירוע להיסטוריה
+
     projectHistory.push(historyItem);
     
-    // שמירת ההיסטוריה ב-LocalStorage
+    // Persist history in localStorage
     localStorage.setItem('projectHistory', JSON.stringify(projectHistory));
 }
 
-// פונקציה להגבלת אורך הטקסט בשדות קלט
 function addTextLengthLimit() {
-    // הגבלת אורך בשדות של הוספת פרויקט
+
     const addNameInput = document.getElementById('add-name');
     if (addNameInput) {
         addNameInput.setAttribute('maxlength', '20');
     }
     
-    // הגבלת אורך בשדות של עריכת פרויקט
+
     const editNameInput = document.getElementById('edit-name');
     if (editNameInput) {
         editNameInput.setAttribute('maxlength', '20');
     }
     
-    // הגבלת אורך בשדות נוספים
+
     for (let i = 1; i <= 4; i++) {
-        // שדות בטופס הוספה
+
         const addFieldNameInput = document.getElementById(`add-field-name-${i}`);
         const addFieldValueInput = document.getElementById(`add-field-value-${i}`);
         
@@ -874,7 +1125,7 @@ function addTextLengthLimit() {
             addFieldValueInput.setAttribute('maxlength', '20');
         }
         
-        // שדות בטופס עריכה
+
         const editFieldNameInput = document.getElementById(`edit-field-name-${i}`);
         const editFieldValueInput = document.getElementById(`edit-field-value-${i}`);
         
@@ -888,15 +1139,14 @@ function addTextLengthLimit() {
     }
 }
 
-// טעינת נתונים מ-LocalStorage בטעינת הדף
 window.addEventListener('load', () => {
-    // טעינת העדפת ערכת נושא
+
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode === 'true') {
         document.body.classList.add('dark');
     }
     
-    // טעינת היסטוריית שינויים
+
     const savedHistory = localStorage.getItem('projectHistory');
     if (savedHistory) {
         try {
@@ -907,7 +1157,7 @@ window.addEventListener('load', () => {
         }
     }
     
-    // טעינת נתוני פרויקטים
+
     const storedProjects = localStorage.getItem('projectsData');
 
     if (storedProjects) {
@@ -925,7 +1175,7 @@ window.addEventListener('load', () => {
             renderProjects(projectsData);
         }
     } else {
-        // אם אין נתונים ב-localStorage, ננסה לטעון מקובץ ברירת מחדל
+
         fetch("projects.json")
             .then(response => response.json())
             .then(data => {
@@ -935,7 +1185,7 @@ window.addEventListener('load', () => {
                 renderProjects(projectsData);
                 renderHotItems();
                 
-                // הוספה להיסטוריה
+
                 addToHistory("טעינה ראשונית", "טעינת נתונים מקובץ ברירת מחדל");
             })
             .catch(error => {
@@ -987,11 +1237,9 @@ function checkProjectStatuses() {
 }
 
 
-// הפעלת בדיקה ראשונית ודור עתידי כל 60 שניות
-setTimeout(checkProjectStatuses, 1500); // פעם אחת עם טעינה
-setInterval(checkProjectStatuses, 60000); // כל דקה
+setTimeout(checkProjectStatuses, 1500);
+setInterval(checkProjectStatuses, 60000);
 
-// פונקציה לבדוק חיבוריות מקומית
 function checkLocalConnectivity() {
     const dnsServers = ["https://dns.google", "https://8.8.8.8", "https://8.8.4.4"];
     const banner = document.getElementById("connectivity-warning");
@@ -1018,6 +1266,5 @@ function checkLocalConnectivity() {
 }
 
 
-// בדיקה ראשונית אחרי טעינה + כל דקה
 setTimeout(checkLocalConnectivity, 2000);
 setInterval(checkLocalConnectivity, 60000);
