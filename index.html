@@ -41,10 +41,10 @@
                                 API &amp; Auth
                             </button>
                             <button type="button" class="monitor-tab" id="monitor-tab-tests" role="tab" aria-selected="false" aria-controls="monitor-panel-tests">
-                                ×‘×“×™×§×•×ª
+                                Tests
                             </button>
                             <button type="button" class="monitor-tab" id="monitor-tab-schedule" role="tab" aria-selected="false" aria-controls="monitor-panel-schedule">
-                                ×ª×–×ž×•×Ÿ
+                                Schedule
                             </button>
                         </div>
                         <div class="monitor-panels">
@@ -96,12 +96,12 @@
                                         <span>Persist password locally (non-production only)</span>
                                     </label>
                                 </div>
-                                <p class="monitor-warning">âš ï¸ ×©×ž×™×¨×ª ×”×§×¨×“× ×¦×™××œ×¡ ×ž×ª×‘×¦×¢×ª ×‘×“×¤×“×¤×Ÿ ×‘×œ×‘×“ ×•×ž×©×ž×©×ª ×œ×¡×‘×™×‘×•×ª ×‘×“×™×§×”.</p>
+                                <p class="monitor-warning">Credentials are stored locally for non-production testing only.</p>
                             </section>
                             <section class="monitor-panel" id="monitor-panel-tests" role="tabpanel" aria-labelledby="monitor-tab-tests" tabindex="-1" hidden>
                                 <div class="monitor-tests-placeholder">
-                                    <p>×˜×‘×œ×ª ×‘×“×™×§×•×ª ×ª×•×¦×’ ×›××Ÿ ×‘×©×œ×‘ ×”×‘×.</p>
-                                    <button type="button" class="monitor-ghost-button" disabled>âž• ×”×•×¡×£ ×‘×“×™×§×”</button>
+                                    <p>Test table will appear here in a later slice.</p>
+                                    <button type="button" class="monitor-ghost-button" disabled>Add test</button>
                                 </div>
                             </section>
                             <section class="monitor-panel" id="monitor-panel-schedule" role="tabpanel" aria-labelledby="monitor-tab-schedule" tabindex="-1" hidden>
@@ -111,10 +111,11 @@
                                 </label>
                                 <label for="monitor-schedule-interval">Interval (seconds)</label>
                                 <input type="number" id="monitor-schedule-interval" min="30" max="3600" step="30">
-                                <button type="button" class="monitor-ghost-button" disabled>â–¶ï¸ Run Now (Coming Soon)</button>
+                                <button type="button" class="monitor-ghost-button" disabled>Run Now (Coming Soon)</button>
                             </section>
                         </div>
                     </div>
+
 
 
                     <button type="button" onclick="saveEdit()">שמור</button>

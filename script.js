@@ -948,27 +948,44 @@ window.addEventListener('load', () => {
 });
 
 function checkProjectStatuses() {
+    const currentOrigin = window.location.origin;
     projectsData.forEach((project, index) => {
         const indicator = document.querySelector(`.status-indicator[data-index="${index}"]`);
         if (!indicator) return;
 
-        if (!project.url || !project.url.startsWith("http")) {
-            indicator.style.backgroundColor = "white";
-            indicator.title = "לא הוזנה כתובת אתר";
+        if (!project.url || !project.url.startsWith('http')) {
+            indicator.style.backgroundColor = '#e0e0e0';
+            indicator.title = 'No endpoint URL provided';
             return;
         }
 
-        fetch(project.url, { method: "HEAD", mode: "no-cors" })
+        let targetUrl;
+        try {
+            targetUrl = new URL(project.url);
+        } catch (error) {
+            indicator.style.backgroundColor = '#e0e0e0';
+            indicator.title = 'Invalid endpoint URL';
+            return;
+        }
+
+        if (targetUrl.origin !== currentOrigin) {
+            indicator.style.backgroundColor = '#f1c40f';
+            indicator.title = 'External endpoints are not checked from this preview';
+            return;
+        }
+
+        fetch(targetUrl.toString(), { method: 'HEAD' })
             .then(() => {
-                indicator.style.backgroundColor = "#8DC71E";
-                indicator.title = "האתר זמין";
+                indicator.style.backgroundColor = '#8DC71E';
+                indicator.title = 'Endpoint reachable';
             })
             .catch(() => {
-                indicator.style.backgroundColor = "#ff0033";
-                indicator.title = "שגיאה בגישה לאתר";
+                indicator.style.backgroundColor = '#ff0033';
+                indicator.title = 'Endpoint unreachable';
             });
     });
 }
+
 
 // הפעלת בדיקה ראשונית ודור עתידי כל 60 שניות
 setTimeout(checkProjectStatuses, 1500); // פעם אחת עם טעינה
