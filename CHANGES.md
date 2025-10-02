@@ -1,4 +1,12 @@
 # יומן שינויים (CHANGES)
+## 2025-10-02
+
+### Slice 6 - Run Now (manual checks behind feature flag)
+- Added Run Now buttons on project cards and inside the monitor modal (spinner + disabled state) gated by `enableMonitorUI`.
+- Implemented the manual login/tests pipeline (`performLogin`, `executeTest`, `runProjectChecks`) with placeholder rendering, token injection, serial chaining, and timeout/CORS/network error handling.
+- Persisted run results into `project.monitor.state` (overall status, per-test codes/errors, lastCreatedId/token timestamp) and refreshed status indicators plus `localStorage`.
+- Introduced toast notifications and supporting helpers/styles for Run Now feedback along with abort-safe request management.
+
 ## 2025-10-01
 
 ### Slice 3 - Tabs skeleton

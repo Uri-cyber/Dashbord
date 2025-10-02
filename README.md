@@ -213,3 +213,4 @@ See `SECURITY.md` for detailed guidance and manual XSS test ideas.
 - No external dependencies, just static files
 - RTL and Hebrew UI text; CSS custom properties with a `.dark` theme override
 - Keep DOM updates safe (prefer `textContent`/`setAttribute`, or escape before templating)
+\n---\n\n## Recent Progress\n\n- Slice 3: added monitor tabs skeleton behind feature flag with ARIA-safe navigation.\n- Slice 4: delivered read-only bindings for API/Auth, Tests, Schedule; responsive helpers and weakmap tab management.\n- Slice 5 (in progress): wired edit-mode toggle, validation, and tests CRUD behind the feature flag; Save flow persists monitor updates without touching legacy UI.
