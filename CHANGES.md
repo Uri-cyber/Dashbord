@@ -6,6 +6,7 @@
 - Implemented the manual login/tests pipeline (`performLogin`, `executeTest`, `runProjectChecks`) with placeholder rendering, token injection, serial chaining, and timeout/CORS/network error handling.
 - Persisted run results into `project.monitor.state` (overall status, per-test codes/errors, lastCreatedId/token timestamp) and refreshed status indicators plus `localStorage`.
 - Introduced toast notifications and supporting helpers/styles for Run Now feedback along with abort-safe request management.
+- Reduced project card controls to a single Edit entry point and localized visible labels (Edit/Delete) to English while relocating destructive actions into the modal.
 
 ## 2025-10-01
 

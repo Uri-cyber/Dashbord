@@ -248,6 +248,31 @@ body.dark .modal-secondary-button {
 body.dark .modal-secondary-button:hover {
     background: rgba(255, 255, 255, 0.1);
 }
+.modal-danger-button {
+    background: var(--delete-button-color);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.modal-danger-button:hover {
+    background: var(--delete-button-hover);
+}
+
+.modal-danger-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+body.dark .modal-danger-button {
+    background: var(--delete-button-color);
+    color: #ffffff;
+}
+
+
 
 
 

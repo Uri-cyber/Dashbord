@@ -907,10 +907,10 @@ const MONITOR_CREATION_METHODS = new Set(['POST']);
 
 const MONITOR_STATUS_CLASSES = ['monitor-pass', 'monitor-partial', 'monitor-fail', 'monitor-unknown'];
 const MONITOR_STATUS_LABELS = {
-    pass: '\u05e2\u05d1\u05e8 \u05d1\u05d4\u05e6\u05dc\u05d7\u05d4',
-    partial: '\u05e2\u05d1\u05e8 \u05d7\u05dc\u05e7\u05d9\u05ea',
-    fail: '\u05e0\u05db\u05e9\u05dc',
-    unknown: '\u05dc\u05d0 \u05e0\u05d1\u05d3\u05e7'
+    pass: 'Pass',
+    partial: 'Partial',
+    fail: 'Fail',
+    unknown: 'Not checked'
 };
 
 function decorateCardWithMonitorStatus(card, project, index) {
@@ -923,12 +923,12 @@ function decorateCardWithMonitorStatus(card, project, index) {
     if (urlIndicator) {
         urlIndicator.removeAttribute('style');
         urlIndicator.classList.add('status-indicator-url');
-        urlIndicator.title = '\u05e1\u05d8\u05d8\u05d5\u05e1 URL: \u05dc\u05d0 \u05e0\u05d1\u05d3\u05e7';
+        urlIndicator.title = 'URL status: Not checked';
     } else {
         urlIndicator = document.createElement('div');
         urlIndicator.className = 'status-indicator status-indicator-url';
         urlIndicator.dataset.index = String(index);
-        urlIndicator.title = '\u05e1\u05d8\u05d8\u05d5\u05e1 URL: \u05dc\u05d0 \u05e0\u05d1\u05d3\u05e7';
+        urlIndicator.title = 'URL status: Not checked';
     }
 
     const statusGroup = document.createElement('div');
@@ -946,23 +946,8 @@ function decorateCardWithMonitorStatus(card, project, index) {
 
     const lastRunInfo = document.createElement('span');
     lastRunInfo.className = 'monitor-last-run';
-    lastRunInfo.textContent = '\u05d1\u05d3\u05d9\u05e7\u05d4 \u05d0\u05d7\u05e8\u05d5\u05e0\u05d4: \u2014';
+    lastRunInfo.textContent = 'Last check: -';
     statusBar.appendChild(lastRunInfo);
-
-    const runButton = document.createElement('button');
-    runButton.type = 'button';
-    runButton.className = 'monitor-run-button';
-    runButton.hidden = true;
-    const spinner = document.createElement('span');
-    spinner.className = 'monitor-run-spinner';
-    spinner.setAttribute('aria-hidden', 'true');
-    runButton.appendChild(spinner);
-    const label = document.createElement('span');
-    label.className = 'monitor-run-label';
-    label.textContent = 'Run Now';
-    runButton.appendChild(label);
-    statusBar.appendChild(runButton);
-    registerMonitorRunButton(index, runButton, 'card');
 
     cardBody.appendChild(statusBar);
 
@@ -973,8 +958,8 @@ function updateMonitorIndicator(project, indicatorEl, lastRunEl) {
     if (!indicatorEl) return;
 
     let status = 'unknown';
-    const tooltipLines = ['\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d1\u05d3\u05d9\u05e7\u05d5\u05ea: ' + MONITOR_STATUS_LABELS.unknown];
-    let lastRunLabel = '\u05d1\u05d3\u05d9\u05e7\u05d4 \u05d0\u05d7\u05e8\u05d5\u05e0\u05d4: \u2014';
+    const tooltipLines = ['Test status: ' + MONITOR_STATUS_LABELS.unknown];
+    let lastRunLabel = 'Last check: -';
 
     const monitor = project && project.monitor ? project.monitor : null;
     const state = monitor && monitor.state ? monitor.state : null;
@@ -982,27 +967,27 @@ function updateMonitorIndicator(project, indicatorEl, lastRunEl) {
     if (state) {
         if (state.overall && MONITOR_STATUS_CLASSES.includes('monitor-' + state.overall)) {
             status = state.overall;
-            tooltipLines[0] = '\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d1\u05d3\u05d9\u05e7\u05d5\u05ea: ' + (MONITOR_STATUS_LABELS[status] || MONITOR_STATUS_LABELS.unknown);
+            tooltipLines[0] = 'Test status: ' + (MONITOR_STATUS_LABELS[status] || MONITOR_STATUS_LABELS.unknown);
         }
 
         if (state.lastRunAt) {
             const formatted = formatMonitorLastRun(state.lastRunAt);
             if (formatted) {
-                lastRunLabel = '\u05d1\u05d3\u05d9\u05e7\u05d4 \u05d0\u05d7\u05e8\u05d5\u05e0\u05d4: ' + formatted;
+                lastRunLabel = 'Last check: ' + formatted;
             }
         }
 
         if (Array.isArray(state.failures) && state.failures.length) {
             const failureNames = state.failures.map(entry => {
-                if (!entry) return '\u05d1\u05d3\u05d9\u05e7\u05d4';
+                if (!entry) return 'Test';
                 if (typeof entry === 'string') return entry;
                 if (typeof entry === 'object') {
                     if (entry.name) return entry.name;
                     if (entry.id) return entry.id;
                 }
-                return '\u05d1\u05d3\u05d9\u05e7\u05d4';
+                return 'Test';
             });
-            tooltipLines.push('\u05d1\u05d3\u05d9\u05e7\u05d5\u05ea \u05e9\u05e0\u05db\u05e9\u05dc\u05d5: ' + failureNames.join(', '));
+            tooltipLines.push('Failed tests: ' + failureNames.join(', '));
         }
     }
 
@@ -1021,7 +1006,7 @@ function formatMonitorLastRun(value) {
     if (Number.isNaN(date.getTime())) {
         return '';
     }
-    return date.toLocaleString('he-IL', {
+    return date.toLocaleString('en-US', {
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
@@ -1451,6 +1436,7 @@ function getMonitorModalElements() {
         toggleButton: document.getElementById('monitor-edit-toggle'),
         saveButton: document.getElementById('monitor-save-button'),
         cancelButton: document.getElementById('monitor-cancel-button'),
+        deleteButton: document.getElementById('monitor-delete-button'),
         legacySaveButton: document.getElementById('edit-form-save-button'),
         testsList: document.getElementById('monitor-tests-list'),
         testsEmpty: document.getElementById('monitor-tests-empty'),
@@ -2115,6 +2101,15 @@ function handleMonitorCancel() {
     updateMonitorActionButtons();
 }
 
+function handleMonitorDelete() {
+    const index = monitorEditContext.projectIndex;
+    if (index === null || index < 0 || index >= projectsData.length) {
+        return;
+    }
+    confirmDelete(index);
+}
+
+
 function handleMonitorSave() {
     if (monitorEditContext.projectIndex === null) {
         return;
@@ -2164,7 +2159,7 @@ function handleMonitorSave() {
 
 
 function initializeMonitorUI() {
-    const { toggleButton, saveButton, cancelButton, addTestButton } = getMonitorModalElements();
+    const { toggleButton, saveButton, cancelButton, deleteButton, addTestButton } = getMonitorModalElements();
     if (toggleButton) {
         toggleButton.addEventListener('click', handleMonitorToggle);
     }
@@ -2173,6 +2168,11 @@ function initializeMonitorUI() {
     }
     if (cancelButton) {
         cancelButton.addEventListener('click', handleMonitorCancel);
+    }
+    if (deleteButton) {
+        deleteButton.addEventListener('click', handleMonitorDelete);
+        deleteButton.hidden = true;
+        deleteButton.disabled = false;
     }
     if (addTestButton) {
         addTestButton.addEventListener('click', handleTestAdd);
@@ -2326,13 +2326,13 @@ function handleFileUpload(event) {
                 // Persist to localStorage
                 localStorage.setItem('projectsData', JSON.stringify(projectsData));
                 // Log history entry
-                addToHistory("העלאת קובץ", "כל הפרויקטים הוחלפו מקובץ");
+                addToHistory('Import projects', 'All projects replaced from file');
                 // Re-render projects
                 renderProjects(projectsData);
                 renderHotItems();
             } catch (error) {
                 console.error("Invalid JSON file:", error);
-                alert("הקובץ שהועלה אינו JSON תקין.");
+                alert('The uploaded file is not valid JSON.');
             }
         };
         reader.readAsText(file);
@@ -2371,8 +2371,8 @@ function renderProjects(projects) {
 
         let fieldsHTML = "";
         for (let i = 1; i <= 4; i++) {
-            const fieldName = truncateText(project.fieldNames?.[i] || `שדה ${i}`, 15);
-            const fieldValue = truncateText(project.fields?.[i] || "לא זמין", 20);
+            const fieldName = truncateText(project.fieldNames?.[i] || `Field ${i}`, 15);
+            const fieldValue = truncateText(project.fields?.[i] || "No value", 20);
             fieldsHTML += `<p class="card-text"><strong>${fieldName}:</strong> ${fieldValue}</p>`;
         }
 
@@ -2382,10 +2382,9 @@ function renderProjects(projects) {
             <h3 class="card-title" title="${truncatedName}">${truncatedName}</h3>
             ${fieldsHTML}
             <div class="card-buttons">
-                <button class="delete-button" onclick="confirmDelete(${index})">מחק</button>
-                <button class="edit-button" onclick="openEditModal(${index})">עריכה</button>
+                <button class="edit-button" onclick="openEditModal(${index})">Edit</button>
             </div>
-            <div class="status-indicator" data-index="${index}" title="לא נבדק"></div>
+            <div class="status-indicator" data-index="${index}" title="Not checked"></div>
         </div>
         `;
 
@@ -2410,7 +2409,7 @@ function renderProjects(projects) {
 
 function openEditModal(index) {
     if (index < 0 || index >= projectsData.length) {
-        alert("מספר פרויקט לא תקין.");
+        alert('Invalid project index.');
         return;
     }
 
@@ -2437,6 +2436,7 @@ function openEditModal(index) {
         toggleButton: monitorToggleButton,
         saveButton: monitorSaveButton,
         cancelButton: monitorCancelButton,
+        deleteButton: monitorDeleteButton,
         legacySaveButton
     } = getMonitorModalElements();
     if (monitorHeader && monitorToggleButton && monitorSaveButton && monitorCancelButton) {
@@ -2476,6 +2476,10 @@ function openEditModal(index) {
             monitorSaveButton.hidden = true;
             monitorCancelButton.hidden = true;
         }
+    }
+    if (monitorDeleteButton) {
+        monitorDeleteButton.hidden = !monitorUIEnabled;
+        monitorDeleteButton.disabled = !monitorUIEnabled;
     }
     if (legacySaveButton) {
         legacySaveButton.hidden = false;
@@ -2521,6 +2525,28 @@ function openEditModal(index) {
     
 }
 
+function forceCloseEditModal() {
+    monitorEditContext.dirty = false;
+    exitMonitorEditMode({ restoreOriginal: false, silent: true });
+    monitorEditContext.projectIndex = null;
+    currentProjectIndex = null;
+    const modal = document.getElementById('edit-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    const monitorTabsContainer = document.getElementById('monitor-tabs');
+    if (monitorTabsContainer) {
+        clearMonitorTabs();
+        teardownMonitorTabs(monitorTabsContainer);
+        monitorTabsContainer.hidden = true;
+    }
+    const { deleteButton: monitorDeleteButton } = getMonitorModalElements();
+    if (monitorDeleteButton) {
+        monitorDeleteButton.hidden = true;
+        monitorDeleteButton.disabled = false;
+    }
+}
+
 function closeEditModal() {
     if (monitorEditContext.isEditing && monitorEditContext.dirty) {
         const discard = confirm('Discard monitor changes?');
@@ -2545,11 +2571,17 @@ function closeEditModal() {
     if (modal) {
         modal.style.display = "none";
     }
+    currentProjectIndex = null;
     const monitorTabsContainer = document.getElementById('monitor-tabs');
     if (monitorTabsContainer) {
         clearMonitorTabs();
         teardownMonitorTabs(monitorTabsContainer);
         monitorTabsContainer.hidden = true;
+    }
+    const { deleteButton: monitorDeleteButton } = getMonitorModalElements();
+    if (monitorDeleteButton) {
+        monitorDeleteButton.hidden = true;
+        monitorDeleteButton.disabled = false;
     }
 }
 
@@ -2709,7 +2741,7 @@ function saveNewProject() {
     const projectName = nameInput.value.trim();
     
     if (!projectName) {
-        alert("אנא הזן שם לפרויקט");
+        alert('Please provide a project name.');
         return;
     }
     
@@ -2727,8 +2759,8 @@ function saveNewProject() {
         const fieldValueInput = document.getElementById(`add-field-value-${i}`);
         
         if (fieldNameInput && fieldValueInput) {
-            newProject.fieldNames[i] = fieldNameInput.value.trim() || `שדה ${i}`;
-            newProject.fields[i] = fieldValueInput.value.trim() || "לא זמין";
+            newProject.fieldNames[i] = fieldNameInput.value.trim() || `Field ${i}`;
+            newProject.fields[i] = fieldValueInput.value.trim() || "No value";
         }
     }
     
@@ -2741,7 +2773,7 @@ function saveNewProject() {
     localStorage.setItem('projectsData', JSON.stringify(projectsData));
     
 
-    addToHistory("הוספה", `הוספת פרויקט חדש: ${projectName}`);
+    addToHistory('Add', `Project added: ${projectName}`);
     
 
     renderProjects(projectsData);
@@ -2753,16 +2785,19 @@ function saveNewProject() {
 
 function confirmDelete(index) {
     if (index < 0 || index >= projectsData.length) {
-        alert("מספר פרויקט לא תקין.");
+        alert('Invalid project index.');
         return;
     }
     
     const projectName = projectsData[index].name;
     
-    if (confirm(`האם אתה בטוח שברצונך למחוק את הפרויקט "${projectName}"?`)) {
+    if (confirm(`Are you sure you want to delete the project "${projectName}"?`)) {
 
         const deletedProjectName = projectsData[index].name;
-        
+        const shouldCloseModal = monitorEditContext.projectIndex === index;
+        if (shouldCloseModal) {
+            forceCloseEditModal();
+        }
 
         projectsData.splice(index, 1);
         
@@ -2770,7 +2805,7 @@ function confirmDelete(index) {
         localStorage.setItem('projectsData', JSON.stringify(projectsData));
         
 
-        addToHistory("מחיקה", `נמחק פרויקט: ${deletedProjectName}`);
+        addToHistory('Delete', `Project deleted: ${deletedProjectName}`);
         
 
         renderProjects(projectsData);
