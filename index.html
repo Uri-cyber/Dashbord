@@ -25,10 +25,6 @@
             <div class="modal-content">
                 <span class="close-button" onclick="closeEditModal()">&times;</span>
                 <h2>עריכת כרטיס</h2>
-                <div class="monitor-edit-header" id="monitor-edit-header" hidden>
-                    <span class="monitor-mode-badge" id="monitor-mode-badge">Read-only mode</span>
-                    <button type="button" id="monitor-edit-toggle" class="monitor-edit-toggle">Edit monitor (behind flag)</button>
-                </div>
                 <form id="edit-form">
                     <div class="monitor-basic-fields">
                         <label for="edit-name">שם פרויקט</label>
@@ -140,7 +136,7 @@
                                         <input type="number" id="monitor-schedule-interval" min="30" max="3600" step="30">
                                     </div>
                                 </div>
-                                <button type="button" id="monitor-run-button" class="monitor-run-button" hidden>
+                                <button type="button" id="monitor-run-button" class="monitor-run-button">
                                     <span class="monitor-run-spinner" aria-hidden="true"></span>
                                     <span class="monitor-run-label">Run Now</span>
                                 </button>
@@ -149,10 +145,10 @@
                     </div>
 
                     <div class="modal-actions">
-                        <button type="button" id="monitor-save-button" class="modal-primary-button" hidden>Save (behind flag)</button>
+                        <button type="button" id="monitor-save-button" class="modal-primary-button" hidden>Save monitor</button>
                         <button type="button" id="monitor-cancel-button" class="modal-secondary-button" hidden>Cancel</button>
                         <button type="button" id="monitor-delete-button" class="modal-danger-button" hidden>Delete project</button>
-                        <button type="button" id="edit-form-save-button" onclick="saveEdit()">שמור</button>
+                        <button type="button" id="edit-form-save-button" onclick="saveEdit()">Save</button>
                     </div>
                 </form>
             </div>
@@ -200,7 +196,7 @@
             העלה קובץ
         </button>
         <input type="file" id="fileInput" accept=".json" style="display: none;">
-        <button id="download-json" class="equal-buttons special-buttons" onclick="downloadUpdatedJSON()">שמור קובץ</button>
+        <button id="download-json" class="equal-buttons special-buttons" onclick="downloadUpdatedJSON()">Save קובץ</button>
         <button id="toggle-theme" class="equal-buttons special-buttons">שנה עיצוב</button>
         <button id="add-project-button" class="equal-buttons special-buttons" onclick="openAddModal()">הוסף פרויקט</button>
         <button id="view-history-button" class="equal-buttons special-buttons" onclick="openHistoryModal()">היסטוריה</button>
@@ -209,6 +205,7 @@
     <script src="script.js"></script>
 </body>
 </html>
+
 
 
 

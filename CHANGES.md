@@ -1,12 +1,14 @@
 # יומן שינויים (CHANGES)
 ## 2025-10-02
 
-### Slice 6 - Run Now (manual checks behind feature flag)
-- Added Run Now buttons on project cards and inside the monitor modal (spinner + disabled state) gated by `enableMonitorUI`.
+### Slice 6 - Run Now (manual checks)
+
+- Removed the legacy `enableMonitorUI` flag; the monitor UI is now always on.
+- Added Run Now buttons on project cards and inside the monitor modal (spinner + disabled state).
 - Implemented the manual login/tests pipeline (`performLogin`, `executeTest`, `runProjectChecks`) with placeholder rendering, token injection, serial chaining, and timeout/CORS/network error handling.
 - Persisted run results into `project.monitor.state` (overall status, per-test codes/errors, lastCreatedId/token timestamp) and refreshed status indicators plus `localStorage`.
 - Introduced toast notifications and supporting helpers/styles for Run Now feedback along with abort-safe request management.
-- Reduced project card controls to a single Edit entry point and localized visible labels (Edit/Delete) to English while relocating destructive actions into the modal.
+- Reduced project card controls to a single Edit entry point, made each card body open the editor on click, and localized visible labels (Edit/Delete) to English while relocating destructive actions into the modal.
 
 ## 2025-10-01
 
@@ -50,4 +52,5 @@
 - בדיקת סטטוס שירותים מתבצעת עם `mode: "no-cors"` ולכן התגובה אטומה. הצעות שיפור:
   - פרוקסי/שרת ביניים לבדיקות סטטוס אמיתיות.
   - סימון תוצאה אטומה כ"לא ידוע" במקום "פעיל".
+
 

@@ -16,6 +16,7 @@ A lightweight, static, single‑page dashboard (RTL/Hebrew UI) for viewing and m
 - History log (create/edit/delete/import/export) with timestamps in `localStorage`
 - Dark mode toggle persisted in `localStorage`
 - Connectivity banner (best-effort) and per-card link status indicator (see details below)
+- Always-on synthetic monitoring UI: configure login/tests, run manual checks, and view per-card health lights
 
 ---
 
@@ -122,9 +123,9 @@ Notes:
 
 ---
 
-## Synthetic Monitoring – Data Model (Phase 1)
+## Synthetic Monitoring (Always On)
 
-Phase 1 introduces a dormant `monitor` object for every project. Older JSON files are migrated automatically on load and the merged data is persisted back to `localStorage` (and therefore to future exports).
+Every project ships with a `monitor` object and the dashboard now exposes it by default. The edit modal provides Login / Tests / Schedule tabs, cards render URL and test status lights, and the `Run Now` action executes the configured flow on demand. Results are stored in `project.monitor.state` (overall verdict, per-test code/error, timestamps) and persisted to `localStorage`/exports. No network traffic occurs unless you trigger Run Now (or, in future slices, enable the scheduler).
 
 Default structure:
 
@@ -160,9 +161,10 @@ Default structure:
 ```
 
 Notes:
-- No UI or synthetic execution yet; phases 2+ will consume these fields.
-- Credentials are still blank/disabled (no tokens are stored in Phase 1).
-- All data remains purely client-side; CORS/opaque responses still apply when synthetic flows arrive.
+- Login placeholders allow `${username}`, `${password}`, `${token}`, `${timestamp}`, `${random}`, `${lastCreatedId}`.
+- Tests can chain requests (e.g. POST -> DELETE) and assert expected status codes.
+- Credentials/live responses stay in the browser only; avoid production secrets.
+- Scheduler remains opt-in per project (default disabled) and will be delivered in Slice 7.
 
 ---
 ## Security & Hardening
@@ -208,9 +210,17 @@ See `SECURITY.md` for detailed guidance and manual XSS test ideas.
 
 ---
 
-## Development Notes
-
-- No external dependencies, just static files
-- RTL and Hebrew UI text; CSS custom properties with a `.dark` theme override
-- Keep DOM updates safe (prefer `textContent`/`setAttribute`, or escape before templating)
-\n---\n\n## Recent Progress\n\n- Slice 3: added monitor tabs skeleton behind feature flag with ARIA-safe navigation.\n- Slice 4: delivered read-only bindings for API/Auth, Tests, Schedule; responsive helpers and weakmap tab management.\n- Slice 5 (in progress): wired edit-mode toggle, validation, and tests CRUD behind the feature flag; Save flow persists monitor updates without touching legacy UI.
+## Development Notes
+
+- No external dependencies, just static files
+- RTL and Hebrew UI text; CSS custom properties with a `.dark` theme override
+- Keep DOM updates safe (prefer `textContent`/`setAttribute`, or escape before templating)
+
+---
+
+## Recent Progress
+
+- Slice 3: introduced the monitor tabs skeleton (initially gated for testing) with ARIA-safe navigation.
+- Slice 4: delivered read-only bindings for API/Auth, Tests, Schedule; responsive helpers and WeakMap-based tab management.
+- Slice 5: wired the edit-mode toggle, validation, and tests CRUD; persist changes into each project's `monitor`.
+- Slice 6: enabled manual Run Now execution, toast feedback, and removed the `enableMonitorUI` flag so the monitor is always on by default.

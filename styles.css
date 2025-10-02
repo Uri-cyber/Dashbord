@@ -91,6 +91,22 @@ header {
     transition: transform 0.2s;
     position: relative; /* דרוש כדי שהנורה תישב בפינה */
 }
+.card.card--interactive {
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card.card--interactive:hover {
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+.card.card--interactive:focus-visible {
+    outline: 2px solid #2657ff;
+    outline-offset: 4px;
+}
+
+
 
 .card:hover {
     transform: scale(1.05);
@@ -507,13 +523,11 @@ button:not .upload-button {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background-color: white;
-    border: 1.5px solid turquoise;
-    position: absolute;
-    bottom: 8px;
-    left: 8px;
-    box-shadow: 0 0 4px rgba(64, 224, 208, 0.3);
+    background-color: #ffffff;
+    border: 1.5px solid #0fb9c8;
+    box-shadow: none;
     transition: background-color 0.3s ease-in-out;
+    display: inline-block;
 }
 
 @keyframes slide-red-bg {
@@ -545,11 +559,7 @@ body.connection-lost {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
-.card.monitor-ui-enabled {
-    position: relative;
-}
-
-.card.monitor-ui-enabled .card-status-bar {
+.card .card-status-bar {
     margin-top: 12px;
     display: flex;
     justify-content: space-between;
@@ -559,11 +569,11 @@ body.connection-lost {
     color: rgba(0, 0, 0, 0.7);
 }
 
-body.dark .card.monitor-ui-enabled .card-status-bar {
+body.dark .card .card-status-bar {
     color: rgba(255, 255, 255, 0.75);
 }
 
-.card.monitor-ui-enabled .status-indicator {
+.card .card-status-bar .status-indicator {
     position: static;
     margin: 0;
     width: 14px;
@@ -574,51 +584,51 @@ body.dark .card.monitor-ui-enabled .card-status-bar {
     box-shadow: none;
 }
 
-body.dark .card.monitor-ui-enabled .status-indicator {
+body.dark .card .card-status-bar .status-indicator {
     background-color: var(--card-bg);
     border-color: #4dd0e1;
 }
 
-.card.monitor-ui-enabled .status-indicator-url {
+.card .card-status-bar .status-indicator-url {
     border-color: #4dd0e1;
 }
 
-.card.monitor-ui-enabled .status-indicator-group {
+.card .card-status-bar .status-indicator-group {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.card.monitor-ui-enabled .monitor-indicator {
+.card .card-status-bar .monitor-indicator {
     border-color: #bdbdbd;
 }
 
-.card.monitor-ui-enabled .monitor-indicator.monitor-pass {
+.card .card-status-bar .monitor-indicator.monitor-pass {
     background-color: #25c06d;
     border-color: #25c06d;
 }
 
-.card.monitor-ui-enabled .monitor-indicator.monitor-partial {
+.card .card-status-bar .monitor-indicator.monitor-partial {
     background-color: #f5a623;
     border-color: #f5a623;
 }
 
-.card.monitor-ui-enabled .monitor-indicator.monitor-fail {
+.card .card-status-bar .monitor-indicator.monitor-fail {
     background-color: #ff4f62;
     border-color: #ff4f62;
 }
 
-.card.monitor-ui-enabled .monitor-indicator.monitor-unknown {
+.card .card-status-bar .monitor-indicator.monitor-unknown {
     background-color: #e0e0e0;
     border-color: #bdbdbd;
 }
 
-.card.monitor-ui-enabled .monitor-last-run {
+.card .card-status-bar .monitor-last-run {
     font-size: 0.78rem;
     white-space: nowrap;
 }
 
-body.dark .card.monitor-ui-enabled .monitor-last-run {
+body.dark .card .card-status-bar .monitor-last-run {
     color: rgba(255, 255, 255, 0.75);
 }
 .monitor-tabs {
@@ -989,61 +999,7 @@ body.dark .monitor-ghost-button {
 }
 
 
-.monitor-edit-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 16px;
-}
 
-.monitor-mode-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 10px;
-    border-radius: 999px;
-    background: #e0e7ff;
-    color: #1a2a6c;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.monitor-mode-badge--editing {
-    background: #fde2a4;
-    color: #7a4700;
-}
-
-.monitor-edit-toggle {
-    border: 1px solid var(--header-bg);
-    background: transparent;
-    color: var(--header-bg);
-    border-radius: 999px;
-    padding: 6px 14px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-.monitor-edit-toggle:disabled {
-    opacity: 0.5;
-    cursor: default;
-}
-
-.monitor-edit-toggle:hover:not(:disabled) {
-    background: var(--header-bg);
-    color: #ffffff;
-}
-
-body.dark .monitor-edit-toggle {
-    border-color: #6f86ff;
-    color: #d6e4ff;
-}
-
-body.dark .monitor-edit-toggle:hover:not(:disabled) {
-    background: #6f86ff;
-    color: #0b1337;
-}
 
 /* Monitor Run Now */
 .monitor-run-button {
@@ -1115,7 +1071,7 @@ body.dark .monitor-run-button .monitor-run-spinner {
     border-right-color: #05203a;
 }
 
-.card.monitor-ui-enabled .monitor-run-button {
+.card .monitor-run-button {
     margin-left: auto;
     font-size: 0.78rem;
     padding: 6px 14px;
@@ -1208,8 +1164,9 @@ body.dark .monitor-toast--unknown {
         min-width: unset;
     }
 
-    .card.monitor-ui-enabled .monitor-run-button {
+    .card .monitor-run-button {
         padding: 6px 12px;
         font-size: 0.76rem;
     }
 }
+

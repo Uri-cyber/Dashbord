@@ -20,7 +20,7 @@ const DEFAULT_MONITOR_TEMPLATE = Object.freeze({
     tests: [],
     schedule: {
         enabled: false,
-        intervalSec: 300
+        intervalSec: 3600
     },
     state: {
         lastRunAt: null,
@@ -36,34 +36,6 @@ const monitorTemplateJSON = JSON.stringify(DEFAULT_MONITOR_TEMPLATE);
 
 function createDefaultMonitor() {
     return JSON.parse(monitorTemplateJSON);
-}
-
-const ENABLE_MONITOR_UI_KEY = 'enableMonitorUI';
-
-function isMonitorUIEnabled() {
-    try {
-        const stored = localStorage.getItem(ENABLE_MONITOR_UI_KEY);
-        if (stored === null) {
-            return false;
-        }
-        return stored === 'true';
-    } catch (error) {
-        console.warn('Failed to read enableMonitorUI flag:', error);
-        return false;
-    }
-}
-
-function setMonitorUIEnabled(value) {
-    try {
-        localStorage.setItem(ENABLE_MONITOR_UI_KEY, value ? 'true' : 'false');
-    } catch (error) {
-        console.warn('Failed to persist enableMonitorUI flag:', error);
-    }
-}
-
-if (typeof window !== 'undefined') {
-    window.setMonitorUIEnabled = setMonitorUIEnabled;
-    window.isMonitorUIEnabled = isMonitorUIEnabled;
 }
 
 const MONITOR_REQUEST_TIMEOUT_MS = 15000;
@@ -216,7 +188,6 @@ function syncMonitorRunButtons(index) {
     const isRunning = monitorRunningProjects.has(index);
     buttons.forEach((button) => {
         if (!button) return;
-        button.hidden = !isMonitorUIEnabled();
         applyMonitorRunButtonState(button, isRunning);
         if (button.dataset.monitorRunSource === 'modal' && monitorEditContext && monitorEditContext.isEditing) {
             button.disabled = true;
@@ -250,11 +221,14 @@ function registerMonitorRunButton(index, button, source) {
             const idx = Number(target.dataset.projectIndex);
             if (Number.isNaN(idx)) return;
             const src = target.dataset.monitorRunSource || 'card';
+            event.preventDefault();
+            if (src === 'card') {
+                event.stopPropagation();
+            }
             handleMonitorRunClick(idx, { mode: 'manual', source: src });
         });
         button.dataset.monitorRunBound = 'true';
     }
-    button.hidden = !isMonitorUIEnabled();
     applyMonitorRunButtonState(button, monitorRunningProjects.has(index));
     if (source === 'modal' && monitorEditContext && monitorEditContext.isEditing) {
         button.disabled = true;
@@ -797,10 +771,6 @@ async function executeTest(project, test, context, index) {
 }
 
 function handleMonitorRunClick(index, options) {
-    if (!isMonitorUIEnabled()) {
-        alert('Run Now is available behind the feature flag.');
-        return;
-    }
     if (monitorRunningProjects.has(index)) {
         return;
     }
@@ -813,9 +783,6 @@ function handleMonitorRunClick(index, options) {
 }
 
 async function runProjectChecks(index, options = {}) {
-    if (!isMonitorUIEnabled()) {
-        return;
-    }
     const project = projectsData[index];
     if (!project) {
         showMonitorToast('unknown', 'Run skipped', 'Project not found.');
@@ -917,8 +884,6 @@ function decorateCardWithMonitorStatus(card, project, index) {
     const cardBody = card.querySelector('.card-body');
     if (!cardBody) return;
 
-    card.classList.add('monitor-ui-enabled');
-
     let urlIndicator = card.querySelector(`.status-indicator[data-index="${index}"]`);
     if (urlIndicator) {
         urlIndicator.removeAttribute('style');
@@ -950,6 +915,7 @@ function decorateCardWithMonitorStatus(card, project, index) {
     statusBar.appendChild(lastRunInfo);
 
     cardBody.appendChild(statusBar);
+
 
     updateMonitorIndicator(project, monitorIndicator, lastRunInfo);
 }
@@ -1154,39 +1120,6 @@ const MONITOR_KNOWN_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
 
 function getMonitorField(id) {
     return document.getElementById(id);
-}
-
-function enforceMonitorReadonlyState() {
-    const textIds = ['monitor-base-url', 'monitor-login-path', 'monitor-login-username', 'monitor-login-password', 'monitor-token-header', 'monitor-token-prefix', 'monitor-schedule-interval'];
-    textIds.forEach((id) => {
-        const field = getMonitorField(id);
-        if (field) {
-            field.readOnly = true;
-            field.setAttribute('aria-readonly', 'true');
-        }
-    });
-    const textarea = getMonitorField('monitor-login-body');
-    if (textarea) {
-        textarea.readOnly = true;
-        textarea.setAttribute('aria-readonly', 'true');
-    }
-    const selectIds = ['monitor-login-method', 'monitor-token-location'];
-    selectIds.forEach((id) => {
-        const select = getMonitorField(id);
-        if (select) {
-            select.disabled = true;
-            select.setAttribute('aria-disabled', 'true');
-            select.tabIndex = -1;
-        }
-    });
-    const checkboxIds = ['monitor-login-enabled', 'monitor-persist-password', 'monitor-schedule-enabled'];
-    checkboxIds.forEach((id) => {
-        const checkbox = getMonitorField(id);
-        if (checkbox) {
-            checkbox.disabled = true;
-            checkbox.setAttribute('aria-disabled', 'true');
-        }
-    });
 }
 
 function setMonitorTextValue(id, value) {
@@ -1432,8 +1365,6 @@ function getMonitorModalElements() {
         modal,
         tabsContainer: document.getElementById('monitor-tabs'),
         header: document.getElementById('monitor-edit-header'),
-        badge: document.getElementById('monitor-mode-badge'),
-        toggleButton: document.getElementById('monitor-edit-toggle'),
         saveButton: document.getElementById('monitor-save-button'),
         cancelButton: document.getElementById('monitor-cancel-button'),
         deleteButton: document.getElementById('monitor-delete-button'),
@@ -1446,27 +1377,12 @@ function getMonitorModalElements() {
     };
 }
 
-function setMonitorModeBadge(label, isEditing) {
-    const { badge } = getMonitorModalElements();
-    if (!badge) return;
-    badge.textContent = label;
-    badge.classList.toggle('monitor-mode-badge--editing', Boolean(isEditing));
-}
-
-function updateMonitorToggleLabel(isEditing) {
-    const { toggleButton } = getMonitorModalElements();
-    if (!toggleButton) return;
-    toggleButton.textContent = isEditing ? 'Back to read-only' : 'Edit monitor (behind flag)';
-    toggleButton.setAttribute('aria-pressed', isEditing ? 'true' : 'false');
-}
-
 function updateMonitorActionButtons() {
     const { saveButton, cancelButton } = getMonitorModalElements();
     if (!saveButton || !cancelButton) return;
-    const flagEnabled = isMonitorUIEnabled();
     const shouldDisableSave = !monitorEditContext.isEditing || !monitorEditContext.dirty || monitorEditContext.hasValidationErrors;
-    saveButton.hidden = !flagEnabled;
-    cancelButton.hidden = !flagEnabled || !monitorEditContext.isEditing;
+    saveButton.hidden = false;
+    cancelButton.hidden = false;
     saveButton.disabled = shouldDisableSave;
 }
 
@@ -1475,11 +1391,7 @@ function setLegacySaveDisabled(isDisabled) {
     if (!legacySaveButton) return;
     const disabled = Boolean(isDisabled);
     legacySaveButton.disabled = disabled;
-    if (isMonitorUIEnabled()) {
-        legacySaveButton.hidden = disabled;
-    } else {
-        legacySaveButton.hidden = false;
-    }
+    legacySaveButton.hidden = disabled;
 }
 
 function addMonitorEditListener(element, event, handler) {
@@ -1498,39 +1410,6 @@ function removeMonitorEditListeners() {
 function setMonitorDirty(isDirty) {
     monitorEditContext.dirty = Boolean(isDirty);
     updateMonitorActionButtons();
-}
-
-function enableMonitorFormEditing() {
-    const textIds = ['monitor-base-url', 'monitor-login-path', 'monitor-login-username', 'monitor-login-password', 'monitor-token-header', 'monitor-token-prefix', 'monitor-schedule-interval'];
-    textIds.forEach((id) => {
-        const field = getMonitorField(id);
-        if (field) {
-            field.readOnly = false;
-            field.removeAttribute('aria-readonly');
-        }
-    });
-    const textarea = getMonitorField('monitor-login-body');
-    if (textarea) {
-        textarea.readOnly = false;
-        textarea.removeAttribute('aria-readonly');
-    }
-    const selectIds = ['monitor-login-method', 'monitor-token-location'];
-    selectIds.forEach((id) => {
-        const select = getMonitorField(id);
-        if (select) {
-            select.disabled = false;
-            select.removeAttribute('aria-disabled');
-            select.tabIndex = 0;
-        }
-    });
-    const checkboxIds = ['monitor-login-enabled', 'monitor-persist-password', 'monitor-schedule-enabled'];
-    checkboxIds.forEach((id) => {
-        const checkbox = getMonitorField(id);
-        if (checkbox) {
-            checkbox.disabled = false;
-            checkbox.removeAttribute('aria-disabled');
-        }
-    });
 }
 
 function clearMonitorValidation() {
@@ -2000,7 +1879,6 @@ function enterMonitorEditMode(project) {
     monitorEditContext.tests = prepareMonitorTestsForEdit(project.monitor || {});
     clearMonitorValidation();
     removeMonitorEditListeners();
-    enableMonitorFormEditing();
     const modal = document.getElementById('edit-modal');
     if (modal) {
         addMonitorEditListener(modal, 'input', (event) => {
@@ -2013,8 +1891,6 @@ function enterMonitorEditMode(project) {
         });
     }
     renderMonitorTestsEditor();
-    setMonitorModeBadge('Edit mode', true);
-    updateMonitorToggleLabel(true);
     const { testsList, testsEditor, testsControls } = getMonitorModalElements();
     if (testsList) testsList.hidden = true;
     if (testsEditor) testsEditor.hidden = false;
@@ -2037,8 +1913,6 @@ function exitMonitorEditMode(options = {}) {
     clearMonitorValidation();
     monitorEditContext.dirty = false;
     monitorEditContext.tests = [];
-    enableMonitorFormEditing();
-    enforceMonitorReadonlyState();
     const { testsList, testsEditor, testsControls } = getMonitorModalElements();
     if (testsEditor) {
         testsEditor.innerHTML = '';
@@ -2051,8 +1925,6 @@ function exitMonitorEditMode(options = {}) {
         testsList.hidden = false;
     }
     setLegacySaveDisabled(false);
-    setMonitorModeBadge('Read-only mode', false);
-    updateMonitorToggleLabel(false);
     updateMonitorActionButtons();
     if (monitorEditContext.projectIndex !== null) {
         syncMonitorRunButtons(monitorEditContext.projectIndex);
@@ -2067,40 +1939,6 @@ function exitMonitorEditMode(options = {}) {
     }
     monitorEditContext.originalMonitor = null;
 }
-
-function handleMonitorToggle() {
-    if (monitorEditContext.projectIndex === null) return;
-    const project = projectsData[monitorEditContext.projectIndex];
-    if (!project) return;
-    if (!monitorEditContext.isEditing) {
-        enterMonitorEditMode(project);
-    } else if (monitorEditContext.dirty && !confirm('Discard monitor changes?')) {
-        return;
-    } else {
-        exitMonitorEditMode({ restoreOriginal: true });
-        populateMonitorTabs(project);
-        updateMonitorToggleLabel(false);
-        updateMonitorActionButtons();
-    }
-}
-
-function handleMonitorCancel() {
-    if (monitorEditContext.dirty && !confirm('Discard monitor changes?')) {
-        return;
-    }
-    if (monitorEditContext.projectIndex !== null) {
-        const project = projectsData[monitorEditContext.projectIndex];
-        if (project) {
-            exitMonitorEditMode({ restoreOriginal: true });
-            populateMonitorTabs(project);
-        }
-    } else {
-        exitMonitorEditMode({ restoreOriginal: true });
-    }
-    updateMonitorToggleLabel(false);
-    updateMonitorActionButtons();
-}
-
 function handleMonitorDelete() {
     const index = monitorEditContext.projectIndex;
     if (index === null || index < 0 || index >= projectsData.length) {
@@ -2148,26 +1986,20 @@ function handleMonitorSave() {
     setMonitorDirty(false);
     updateMonitorActionButtons();
     setMonitorModeBadge('Saved', false);
-    updateMonitorToggleLabel(false);
     window.setTimeout(() => {
         if (!monitorEditContext.isEditing) {
-            setMonitorModeBadge('Read-only mode', false);
-            updateMonitorToggleLabel(false);
-        }
+                        }
     }, 2000);
 }
 
 
 function initializeMonitorUI() {
-    const { toggleButton, saveButton, cancelButton, deleteButton, addTestButton } = getMonitorModalElements();
-    if (toggleButton) {
-        toggleButton.addEventListener('click', handleMonitorToggle);
-    }
+    const { saveButton, cancelButton, deleteButton, addTestButton } = getMonitorModalElements();
     if (saveButton) {
         saveButton.addEventListener('click', handleMonitorSave);
     }
     if (cancelButton) {
-        cancelButton.addEventListener('click', handleMonitorCancel);
+        cancelButton.addEventListener('click', closeEditModal);
     }
     if (deleteButton) {
         deleteButton.addEventListener('click', handleMonitorDelete);
@@ -2177,13 +2009,11 @@ function initializeMonitorUI() {
     if (addTestButton) {
         addTestButton.addEventListener('click', handleTestAdd);
     }
-    updateMonitorToggleLabel(false);
     updateMonitorActionButtons();
 }
 
 
 function populateMonitorTabs(project) {
-    enforceMonitorReadonlyState();
     if (!project || !project.monitor) {
         clearMonitorTabs();
         return;
@@ -2349,8 +2179,6 @@ function renderProjects(projects) {
     container.innerHTML = "";
     
     const noProjectsMessage = document.getElementById("no-projects-message");
-    const monitorUIEnabled = isMonitorUIEnabled();
-
     
     if (!projects || projects.length === 0) {
         if (noProjectsMessage) {
@@ -2381,12 +2209,23 @@ function renderProjects(projects) {
         <div class="card-body">
             <h3 class="card-title" title="${truncatedName}">${truncatedName}</h3>
             ${fieldsHTML}
-            <div class="card-buttons">
-                <button class="edit-button" onclick="openEditModal(${index})">Edit</button>
-            </div>
             <div class="status-indicator" data-index="${index}" title="Not checked"></div>
         </div>
         `;
+        const accessibleName = (project && typeof project.name === 'string' && project.name.trim()) ? project.name.trim() : `Project ${index + 1}`;
+        card.classList.add('card--interactive');
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-label', `Edit project ${accessibleName}`);
+        card.addEventListener('click', () => {
+            openEditModal(index);
+        });
+        card.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openEditModal(index);
+            }
+        });
 
 
         // Ensure safe title attribute without breaking HTML
@@ -2398,13 +2237,10 @@ function renderProjects(projects) {
         }
 
         container.appendChild(card);
-        if (monitorUIEnabled) {
-
-            decorateCardWithMonitorStatus(card, project, index);
-
-        }
+        decorateCardWithMonitorStatus(card, project, index);
 
     });
+    checkProjectStatuses();
 }
 
 function openEditModal(index) {
@@ -2415,71 +2251,52 @@ function openEditModal(index) {
 
     currentProjectIndex = index;
     const project = projectsData[index];
-    const monitorUIEnabled = isMonitorUIEnabled();
-
     const monitorTabsContainer = document.getElementById('monitor-tabs');
     if (monitorTabsContainer) {
         clearMonitorTabs();
-        if (monitorUIEnabled) {
-            monitorTabsContainer.hidden = false;
-            setupMonitorTabs(monitorTabsContainer);
-            resetMonitorTabs(monitorTabsContainer);
-            populateMonitorTabs(project);
-        } else {
-            teardownMonitorTabs(monitorTabsContainer);
-            monitorTabsContainer.hidden = true;
-        }
+        setupMonitorTabs(monitorTabsContainer);
+        resetMonitorTabs(monitorTabsContainer);
+        populateMonitorTabs(project);
+        monitorTabsContainer.hidden = false;
     }
 
     const {
         header: monitorHeader,
-        toggleButton: monitorToggleButton,
         saveButton: monitorSaveButton,
         cancelButton: monitorCancelButton,
         deleteButton: monitorDeleteButton,
         legacySaveButton
     } = getMonitorModalElements();
-    if (monitorHeader && monitorToggleButton && monitorSaveButton && monitorCancelButton) {
-        if (monitorUIEnabled) {
-            monitorHeader.hidden = false;
-            monitorToggleButton.disabled = false;
-            exitMonitorEditMode({ restoreOriginal: false });
-            monitorEditContext.projectIndex = index;
-            const modalRunButton = document.getElementById('monitor-run-button');
-            if (modalRunButton) {
-                if (monitorUIEnabled) {
-                    registerMonitorRunButton(index, modalRunButton, 'modal');
-                } else {
-                    modalRunButton.hidden = true;
-                    modalRunButton.disabled = true;
-                    modalRunButton.classList.remove('is-running');
-                    modalRunButton.removeAttribute('aria-busy');
-                    const label = modalRunButton.querySelector('.monitor-run-label');
-                    if (label) {
-                        label.textContent = 'Run Now';
-                    }
-                }
-            }
-            setMonitorModeBadge('Read-only mode', false);
-            updateMonitorToggleLabel(false);
-            updateMonitorActionButtons();
-            setMonitorDirty(false);
-            monitorSaveButton.hidden = false;
-            monitorSaveButton.disabled = true;
-            monitorCancelButton.hidden = true;
-        } else {
-            monitorHeader.hidden = true;
-            monitorToggleButton.disabled = true;
-            monitorEditContext.projectIndex = null;
-            exitMonitorEditMode({ restoreOriginal: false });
-            updateMonitorToggleLabel(false);
-            monitorSaveButton.hidden = true;
-            monitorCancelButton.hidden = true;
-        }
+
+    monitorEditContext.projectIndex = index;
+    exitMonitorEditMode({ restoreOriginal: false });
+
+    const modalRunButton = document.getElementById('monitor-run-button');
+    if (modalRunButton) {
+        registerMonitorRunButton(index, modalRunButton, 'modal');
     }
+
+    if (monitorHeader) {
+        monitorHeader.hidden = false;
+    }
+
+    setMonitorDirty(false);
+
+    if (monitorSaveButton) {
+        monitorSaveButton.hidden = false;
+        monitorSaveButton.disabled = true;
+    }
+
+    if (monitorCancelButton) {
+        monitorCancelButton.hidden = false;
+        monitorCancelButton.disabled = false;
+    }
+
+    updateMonitorActionButtons();
+
     if (monitorDeleteButton) {
-        monitorDeleteButton.hidden = !monitorUIEnabled;
-        monitorDeleteButton.disabled = !monitorUIEnabled;
+        monitorDeleteButton.hidden = false;
+        monitorDeleteButton.disabled = false;
     }
     if (legacySaveButton) {
         legacySaveButton.hidden = false;
@@ -2517,7 +2334,20 @@ function openEditModal(index) {
         editURL.value = project.url || "";
     }
     fieldsContainer.innerHTML = fieldsHTML;
-    
+
+    if (!project.monitor) {
+        project.monitor = createDefaultMonitor();
+    }
+    const scheduleEnabledInput = document.getElementById("monitor-schedule-enabled");
+    const scheduleIntervalInput = document.getElementById("monitor-schedule-interval");
+    const currentSchedule = project.monitor.schedule || {};
+    if (scheduleEnabledInput) {
+        scheduleEnabledInput.checked = Boolean(currentSchedule.enabled);
+    }
+    if (scheduleIntervalInput) {
+        scheduleIntervalInput.value = currentSchedule.intervalSec ?? 3600;
+    }
+
     const editModal = document.getElementById("edit-modal");
     if (editModal) {
         editModal.style.display = "block";
@@ -2718,9 +2548,34 @@ function saveEdit() {
             }
         }
 
+        if (!project.monitor) {
+            project.monitor = createDefaultMonitor();
+        }
+        const scheduleEnabledInput = document.getElementById("monitor-schedule-enabled");
+        const scheduleIntervalInput = document.getElementById("monitor-schedule-interval");
+        const schedule = project.monitor.schedule || {};
+
+        if (scheduleEnabledInput) {
+            schedule.enabled = Boolean(scheduleEnabledInput.checked);
+        }
+
+        if (scheduleIntervalInput) {
+            const rawInterval = scheduleIntervalInput.value;
+            if (rawInterval !== "") {
+                const parsedInterval = Number(rawInterval);
+                if (!Number.isNaN(parsedInterval)) {
+                    const clampedInterval = Math.min(Math.max(parsedInterval, 30), 3600);
+                    schedule.intervalSec = clampedInterval;
+                }
+            }
+        }
+
+        project.monitor.schedule = schedule;
+        mergeDefaults(project.monitor, DEFAULT_MONITOR_TEMPLATE);
+
         // Persist projects data in localStorage
         localStorage.setItem('projectsData', JSON.stringify(projectsData));
-        
+
 
         addToHistory("עריכה", `עריכת פרויקט: ${oldName} -> ${project.name}`);
 
@@ -2872,6 +2727,7 @@ function addTextLengthLimit() {
 }
 
 window.addEventListener('load', () => {
+    localStorage.removeItem('enableMonitorUI');
     initializeMonitorUI();
 
 
@@ -2932,14 +2788,17 @@ window.addEventListener('load', () => {
 });
 
 function checkProjectStatuses() {
-    const currentOrigin = window.location.origin;
     projectsData.forEach((project, index) => {
         const indicator = document.querySelector(`.status-indicator[data-index="${index}"]`);
         if (!indicator) return;
 
-        if (!project.url || !project.url.startsWith('http')) {
-            indicator.style.backgroundColor = '#e0e0e0';
-            indicator.title = 'No endpoint URL provided';
+        const setStatus = (color, title) => {
+            indicator.style.backgroundColor = color;
+            indicator.title = title;
+        };
+
+        if (!project.url || !project.url.trim()) {
+            setStatus('#e0e0e0', 'לא הוזנה כתובת לבדיקה');
             return;
         }
 
@@ -2947,25 +2806,16 @@ function checkProjectStatuses() {
         try {
             targetUrl = new URL(project.url);
         } catch (error) {
-            indicator.style.backgroundColor = '#e0e0e0';
-            indicator.title = 'Invalid endpoint URL';
+            setStatus('#e0e0e0', 'כתובת URL אינה תקינה');
             return;
         }
 
-        if (targetUrl.origin !== currentOrigin) {
-            indicator.style.backgroundColor = '#f1c40f';
-            indicator.title = 'External endpoints are not checked from this preview';
-            return;
-        }
-
-        fetch(targetUrl.toString(), { method: 'HEAD' })
+        fetch(targetUrl.toString(), { method: 'HEAD', mode: 'no-cors' })
             .then(() => {
-                indicator.style.backgroundColor = '#8DC71E';
-                indicator.title = 'Endpoint reachable';
+                setStatus('#8DC71E', 'האתר זמין (בדיקת no-cors)');
             })
             .catch(() => {
-                indicator.style.backgroundColor = '#ff0033';
-                indicator.title = 'Endpoint unreachable';
+                setStatus('#ff0033', 'לא ניתן לפנות לכתובת (שגיאת רשת או חסימת CORS)');
             });
     });
 }
@@ -3002,6 +2852,8 @@ function checkLocalConnectivity() {
 
 setTimeout(checkLocalConnectivity, 2000);
 setInterval(checkLocalConnectivity, 60000);
+
+
 
 
 
