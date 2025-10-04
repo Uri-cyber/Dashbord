@@ -54,3 +54,18 @@
   - סימון תוצאה אטומה כ"לא ידוע" במקום "פעיל".
 
 
+
+
+
+## Recent Progress
+
+
+
+- Slice 3: introduced the monitor tabs skeleton (initially gated for testing) with ARIA-safe navigation.
+
+- Slice 4: delivered read-only bindings for API/Auth, Tests, Schedule; responsive helpers and WeakMap-based tab management.
+
+- Slice 5: wired the edit-mode toggle, validation, and tests CRUD; persist changes into each project's `monitor`.
+
+- Slice 6: enabled manual Run Now execution, toast feedback, and removed the `enableMonitorUI` flag so the monitor is always on by default.
+

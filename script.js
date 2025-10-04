@@ -1802,7 +1802,8 @@ function createTestTextarea(test, index, fieldName, rows) {
     return textarea;
 }
 
-function handleTestAdd() {
+function handleTestAdd(event) {
+    try { event?.preventDefault?.(); event?.stopPropagation?.(); } catch (_) {}
     const newTest = {
         id: generateTestId(),
         name: '',
@@ -1903,10 +1904,13 @@ function collectMonitorFromForm(modal, project) {
     const scheduleEnabledCheckbox = modal.querySelector('#monitor-schedule-enabled');
     const scheduleIntervalInput = modal.querySelector('#monitor-schedule-interval');
     let intervalValue = Number(scheduleIntervalInput?.value || 0);
-    if (Number.isNaN(intervalValue) || intervalValue < 30 || intervalValue > 3600) {
-        showFieldError(scheduleIntervalInput, 'Interval must be 30-3600 seconds');
-        if (!firstInvalid) firstInvalid = scheduleIntervalInput;
-        errors.push('schedule.intervalSec');
+    // Validate interval only when schedule is enabled; otherwise skip validation
+    if (Boolean(scheduleEnabledCheckbox?.checked)) {
+        if (Number.isNaN(intervalValue) || intervalValue < 30 || intervalValue > 3600) {
+            showFieldError(scheduleIntervalInput, 'Interval must be 30-3600 seconds');
+            if (!firstInvalid) firstInvalid = scheduleIntervalInput;
+            errors.push('schedule.intervalSec');
+        }
     }
 
     const tests = [];
@@ -2137,7 +2141,7 @@ function handleMonitorDelete() {
 
 
 function initializeMonitorUI() {
-    const { cancelButton, deleteButton, addTestButton } = getMonitorModalElements();
+    const { cancelButton, deleteButton, addTestButton, legacySaveButton } = getMonitorModalElements();
     if (cancelButton) {
         cancelButton.addEventListener('click', closeEditModal);
     }
@@ -2148,6 +2152,18 @@ function initializeMonitorUI() {
     }
     if (addTestButton) {
         addTestButton.addEventListener('click', handleTestAdd);
+    }
+    if (legacySaveButton) {
+        legacySaveButton.addEventListener('click', (event) => {
+            try { event?.preventDefault?.(); event?.stopPropagation?.(); } catch (_) {}
+            saveEdit();
+        });
+    }
+    const editForm = document.getElementById('edit-form');
+    if (editForm) {
+        editForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+        });
     }
     updateMonitorActionButtons();
 }
@@ -2414,7 +2430,6 @@ function openEditModal(index) {
     } = getMonitorModalElements();
 
     monitorEditContext.projectIndex = index;
-    exitMonitorEditMode({ restoreOriginal: false });
 
     const modalRunButton = document.getElementById('monitor-run-button');
     if (modalRunButton) {
@@ -2962,9 +2977,4 @@ function checkLocalConnectivity() {
 
 setTimeout(checkLocalConnectivity, 2000);
 setInterval(checkLocalConnectivity, 60000);
-
-
-
-
-
 

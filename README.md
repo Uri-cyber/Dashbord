@@ -59,6 +59,10 @@
 - פוטר: כפתורי העלאה, שמירה ל־JSON, שינוי עיצוב, הוספת פרויקט, היסטוריה.
 - מצב כהה: שמירה ב־`localStorage`.
 
+טאבים וסדר ברירת המחדל
+- סדר הלשוניות במודל: Tests → API & Auth → Schedule.
+- לשונית Tests היא לשונית ברירת המחדל בעת פתיחת המודל.
+
 ---
 
 ## פעולות עיקריות
@@ -134,6 +138,15 @@
 
 טוסטרים מעדכנים בפידבק (Pass/Partial/Fail/Unknown) עם סיכום בדיקות.
 
+עורך הטסטים — יכולות
+- הוספה/עריכה/מחיקה של טסטים.
+- שכפול טסט קיים.
+- הזזה למעלה/למטה (↑/↓) לשינוי סדר הריצה.
+- Badge עם מספר הטסטים בלשונית Tests (מנוהל ע"י `updateTestsBadge`).
+- אינדיקטורים בזמן אמת בלשוניות:
+  - API & Auth: ✓ כאשר מוגדר Base URL תקין, ⚠ כש־Login Enabled אך חסרים פרטים, ✗ כש־Base URL חסר (מנוהל ע"י `updateAuthStatus`).
+  - Schedule: ⏰ כשה־Scheduler כבוי, ✓ כשמופעל ו־interval מוגדר (מנוהל ע"י `updateScheduleStatus`).
+
 ---
 
 ## זרימות מרכזיות "מאחורי הקלעים"
@@ -144,11 +157,18 @@
   - `ensureMonitorDefaults()` → הוספת `monitor` ברירת מחדל לכל פרויקט חסר.
   - `renderProjects()` + `renderHotItems()` + התחלת מתזמן `startMonitorScheduler()`.
   - בדיקות עזר: `checkProjectStatuses()` (URL), `checkLocalConnectivity()` (DNS).
-- עריכת פרויקט: `openEditModal(index)` → `setupMonitorTabs`/`populateMonitorTabs` →
-  `enterMonitorEditMode` (CRUD טסטים, ולידציה, סטטוסי לשוניות) → `saveEdit()` מאסף ערכים דרך `collectMonitorFromForm()` וממזג ל־`project.monitor` 
-  ושומר ל־`localStorage`.
+- עריכת פרויקט: `openEditModal(index)` → `setupMonitorTabs`/`resetMonitorTabs` →
+  `populateMonitorTabs(project)` מבצע כניסה אוטומטית ל־`enterMonitorEditMode(project)` →
+  `saveEdit()` מאסף ערכים דרך `collectMonitorFromForm()` וממזג ל־`project.monitor` ושומר ל־`localStorage`.
 - הרצת בדיקות: `runProjectChecks(index)` → `performLogin()` (אם דרוש) → לולאת `executeTest()` לפי סדר הבדיקות → `persistRunResult()`.
 - רשת: `monitorFetch()` עם `AbortController`, ניהול timeouts, וניקיון מאזינים בביטול/סיום.
+
+שמירת עריכות — `saveEdit()`
+- אוסף את כל ערכי המודל, כולל כל לשוניות ה־Monitor, דרך `collectMonitorFromForm()`.
+- ממזג עם מצב קיים (שומר `monitor.state`), ומיישם ברירות מחדל (`mergeDefaults`).
+- מתקף ומייצב `schedule.intervalSec` לטווח 30–3600 שניות.
+- מרנדר מחדש, שומר ל־`localStorage`, ומפעיל מחזור מתזמן אם נדרש.
+- נקודת כניסה: `script.js:2484`.
 
 ---
 
@@ -179,6 +199,16 @@
   `populateMonitorTabs`, `enterMonitorEditMode`/`exitMonitorEditMode`, `collectMonitorFromForm`.
 - ריצה: `runProjectChecks`, `performLogin`, `executeTest`, `monitorFetch`, `persistRunResult`.
 - שיפור UX: טוסטרים (`showMonitorToast`), מתזמן (`startMonitorScheduler`/`stopMonitorScheduler`).
+
+מודלים — פתיחה/סגירה ומחזור חיים
+- Edit Modal: `openEditModal(index)` פותח, `closeEditModal()` סוגר, `forceCloseEditModal()` לסגירה כפויה (למשל לאחר מחיקה).
+- Add Modal: `openAddModal()` / `closeAddModal()`.
+- History Modal: `openHistoryModal()` / `closeHistoryModal()`.
+- בעת פתיחת Edit: מתבצע `clearMonitorTabs` → `setupMonitorTabs` → `resetMonitorTabs` → `populateMonitorTabs(project)` שמתחיל מצב עריכה.
+
+מתזמן (Scheduler)
+- סריקת זמני ריצה מתוזמנת כל 10 שניות (`MONITOR_SCHEDULE_POLL_INTERVAL_MS = 10000`).
+- הרצה מתוזמנת לפרויקט מתבצעת רק אם `schedule.enabled` והפרש הזמן מאז `state.lastRunAt` גדול מן `intervalSec` (ננעץ ל־30–3600).
 
 קישורי `localStorage`:
 - `projectsData` — מערך הפרויקטים המלא (כולל `monitor`).
@@ -221,17 +251,12 @@
 
 ---
 
-## Development Notes
-
-- No external dependencies, just static files
-- RTL and Hebrew UI text; CSS custom properties with a `.dark` theme override
-- Keep DOM updates safe (prefer `textContent`/`setAttribute`, or escape before templating)
-
----
-
-## Recent Progress
-
-- Slice 3: introduced the monitor tabs skeleton (initially gated for testing) with ARIA-safe navigation.
-- Slice 4: delivered read-only bindings for API/Auth, Tests, Schedule; responsive helpers and WeakMap-based tab management.
-- Slice 5: wired the edit-mode toggle, validation, and tests CRUD; persist changes into each project's `monitor`.
-- Slice 6: enabled manual Run Now execution, toast feedback, and removed the `enableMonitorUI` flag so the monitor is always on by default.
+## Development Notes
+
+
+
+- No external dependencies, just static files
+
+- RTL and Hebrew UI text; CSS custom properties with a `.dark` theme override
+
+- Keep DOM updates safe (prefer `textContent`/`setAttribute`, or escape before templating)
