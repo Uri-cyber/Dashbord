@@ -69,3 +69,14 @@
 
 - Slice 6: enabled manual Run Now execution, toast feedback, and removed the `enableMonitorUI` flag so the monitor is always on by default.
 
+
+fix: resolve monitor tabs race condition and form validation issues
+
+- Remove duplicate exit call in openEditModal causing tests to disappear
+- Fix form submit preventDefault to stop unintended Save triggers
+- Remove inline onclick handlers, use addEventListener pattern
+- Fix Schedule validation to only run when enabled
+- Enforce single visible panel with CSS display rules and JS coordination
+- Add explicit panel visibility management in activateMonitorTab
+
+Closes: Tests not appearing after Add, Save button not responding

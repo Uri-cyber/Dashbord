@@ -191,13 +191,17 @@ function syncMonitorRunButtons(index) {
     buttons.forEach((button) => {
         if (!button) return;
         applyMonitorRunButtonState(button, isRunning);
-        if (button.dataset.monitorRunSource === 'modal' && monitorEditContext && monitorEditContext.isEditing) {
-            button.disabled = true;
-            button.classList.remove('is-running');
-            button.removeAttribute('aria-busy');
-            const label = button.querySelector('.monitor-run-label');
-            if (label) {
-                label.textContent = 'Run Now';
+        // Preview badge in modal when editing
+        if (button.dataset.monitorRunSource === 'modal') {
+            const existing = button.querySelector('.monitor-preview-badge');
+            const shouldShow = Boolean(monitorEditContext && monitorEditContext.isEditing);
+            if (shouldShow && !existing) {
+                const badge = document.createElement('span');
+                badge.className = 'monitor-preview-badge';
+                badge.textContent = 'Preview';
+                button.appendChild(badge);
+            } else if (!shouldShow && existing) {
+                existing.remove();
             }
         }
     });
@@ -227,19 +231,17 @@ function registerMonitorRunButton(index, button, source) {
             if (src === 'card') {
                 event.stopPropagation();
             }
+            // If running from modal while editing, perform a preview run without saving
+            if (src === 'modal' && monitorEditContext && monitorEditContext.isEditing) {
+                runProjectPreview(idx);
+                return;
+            }
             handleMonitorRunClick(idx, { mode: 'manual', source: src });
         });
         button.dataset.monitorRunBound = 'true';
     }
     applyMonitorRunButtonState(button, monitorRunningProjects.has(index));
-    if (source === 'modal' && monitorEditContext && monitorEditContext.isEditing) {
-        button.disabled = true;
-        button.classList.remove('is-running');
-        const label = button.querySelector('.monitor-run-label');
-        if (label) {
-            label.textContent = 'Run Now';
-        }
-    }
+    // In preview mode we keep the button enabled in the modal
 }
 
 function ensureMonitorToastContainer() {
@@ -552,6 +554,42 @@ function persistRunResult(project, index, results, context) {
 function updateMonitorIndicatorsForProject(index) {
     const project = projectsData[index];
     if (!project) return;
+    
+    // עדכון אינדיקטור הנורה הקיימת
+    const cards = document.querySelectorAll('.card');
+    cards.forEach((card) => {
+        const cardIndex = parseInt(card.dataset.index || '-1');
+        if (cardIndex === index) {
+            // מעדכנים את הנורה ליד הכותרת
+            const statusIndicator = card.querySelector('.status-indicator');
+            if (statusIndicator) {
+                statusIndicator.classList.remove('url-up', 'url-down', 'url-unknown');
+                
+                // בדיקת סטטוס ה-URL
+                if (project.url && project.url.trim()) {
+                    statusIndicator.classList.add('url-up');
+                    statusIndicator.title = 'URL is reachable';
+                } else {
+                    statusIndicator.classList.add('url-unknown');
+                    statusIndicator.title = 'No URL configured';
+                }
+            }
+            
+            // מעדכנים את שורת ה-Tests
+            const testsRow = card.querySelector('.monitor-tests-status');
+            if (testsRow) {
+                const testsStatus = determineMonitorStatus(project);
+                const testsValue = testsRow.querySelector('.monitor-tests-value');
+                if (testsValue) {
+                    testsValue.className = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
+                    testsValue.textContent = testsStatus.label;
+                    testsValue.title = testsStatus.tooltip;
+                }
+            }
+        }
+    });
+    
+    // עדכון אינדיקטורים ישנים (למקרה שיש)
     const indicators = document.querySelectorAll(`.monitor-indicator[data-monitor-index="${index}"]`);
     indicators.forEach((indicator) => {
         const card = indicator.closest('.card');
@@ -794,6 +832,7 @@ async function runProjectChecks(index, options = {}) {
         showMonitorToast('unknown', 'Run skipped', 'Monitor is not configured for this project.');
         return;
     }
+    const isPreview = Boolean(options && options.preview);
     const context = getMonitorRunContext(index);
     resetMonitorRunContext(context, options.mode || 'manual');
     context.source = options && options.source ? options.source : 'card';
@@ -854,16 +893,33 @@ async function runProjectChecks(index, options = {}) {
         return;
     }
     if (shortCircuitReason === 'missing-base-url') {
-        persistRunResult(project, index, results, context);
+        if (!isPreview) {
+            persistRunResult(project, index, results, context);
+        }
         showMonitorToast('unknown', 'Run incomplete', 'Base URL is missing for this project.');
         return;
     }
-    persistRunResult(project, index, results, context);
+    if (!isPreview) {
+        persistRunResult(project, index, results, context);
+    }
     const overall = computeOverall(results);
     const summary = summarizeMonitorResults(results);
     const overallLabel = MONITOR_RUN_STATUS_LABELS[overall] || overall;
-    const body = `${summary.pass}/${summary.total} passed, ${summary.fail} failed, ${summary.unknown} unknown`;
-    showMonitorToast(overall, `Run completed: ${overallLabel}`, body);
+    const failedTests = Array.isArray(results) ? results.filter(r => r && r.status === 'fail') : [];
+    const unknownTests = Array.isArray(results) ? results.filter(r => r && r.status === 'unknown') : [];
+    let toastBody = `${summary.pass}/${summary.total} passed (${summary.fail} failed, ${summary.unknown} unknown)`;
+    if (failedTests.length > 0) {
+        const names = failedTests.slice(0, 2).map(r => r.name || r.id).filter(Boolean);
+        const total = failedTests.length;
+        if (total <= 2) {
+            toastBody = `Failed: ${names.join(', ')}`;
+        } else {
+            toastBody = `Failed: ${names.join(', ')} (${total} total)`;
+        }
+    } else if (unknownTests.length > 0) {
+        toastBody = `${summary.pass}/${summary.total} passed, ${unknownTests.length} unknown`;
+    }
+    showMonitorToast(overall, `Run completed: ${overallLabel}`, toastBody);
 }
 
 function runScheduledMonitorCycle() {
@@ -909,6 +965,364 @@ function stopMonitorScheduler() {
 
 const MONITOR_CREATION_METHODS = new Set(['POST']);
 
+// ============== Monitor Tests Tooltip Management ==============
+const monitorTestsTooltipState = {
+    activeTooltip: null,
+    activeButton: null,
+    closeTimer: null
+};
+
+/**
+ * Closes all open monitor tests tooltips
+ */
+function closeAllMonitorTestsTooltips() {
+    if (monitorTestsTooltipState.closeTimer) {
+        clearTimeout(monitorTestsTooltipState.closeTimer);
+        monitorTestsTooltipState.closeTimer = null;
+    }
+    
+    if (monitorTestsTooltipState.activeTooltip) {
+        if (monitorTestsTooltipState.activeTooltip.parentElement) {
+            monitorTestsTooltipState.activeTooltip.remove();
+        }
+        monitorTestsTooltipState.activeTooltip = null;
+    }
+    
+    if (monitorTestsTooltipState.activeButton) {
+        monitorTestsTooltipState.activeButton.setAttribute('aria-expanded', 'false');
+        monitorTestsTooltipState.activeButton = null;
+    }
+}
+
+/**
+ * Builds the tooltip content for monitor tests status
+ */
+function buildMonitorTestsTooltip(project, statusInfo) {
+    const tooltip = document.createElement('div');
+    tooltip.className = 'monitor-tests-tooltip';
+    tooltip.setAttribute('role', 'tooltip');
+    tooltip.id = `monitor-tooltip-${Date.now()}`;
+    
+    // Header
+    const header = document.createElement('div');
+    header.className = 'monitor-tests-tooltip__header';
+    header.textContent = `Tests: ${statusInfo.label}`;
+    tooltip.appendChild(header);
+    
+    // Body - show failures or summary
+    const body = document.createElement('div');
+    body.className = 'monitor-tests-tooltip__body';
+    
+    if (statusInfo.status === 'NO_TESTS') {
+        const msg = document.createElement('div');
+        msg.className = 'monitor-tests-tooltip__message';
+        msg.textContent = 'No tests configured for this project.';
+        body.appendChild(msg);
+    } else if (statusInfo.status === 'NOT_RUN') {
+        const msg = document.createElement('div');
+        msg.className = 'monitor-tests-tooltip__message';
+        msg.textContent = `${statusInfo.totalTests} test${statusInfo.totalTests !== 1 ? 's' : ''} configured but not yet run.`;
+        body.appendChild(msg);
+    } else if (statusInfo.status === 'PASS') {
+        const msg = document.createElement('div');
+        msg.className = 'monitor-tests-tooltip__message monitor-tests-tooltip__message--success';
+        msg.textContent = `✓ All ${statusInfo.totalTests} test${statusInfo.totalTests !== 1 ? 's' : ''} passed!`;
+        body.appendChild(msg);
+    } else if (statusInfo.status === 'FAIL' && statusInfo.failedTests.length > 0) {
+        const summary = document.createElement('div');
+        summary.className = 'monitor-tests-tooltip__summary';
+        summary.textContent = `${statusInfo.passedTests}/${statusInfo.totalTests} passed, ${statusInfo.failedTests.length} failed`;
+        body.appendChild(summary);
+        
+        const failuresList = document.createElement('div');
+        failuresList.className = 'monitor-tests-tooltip__failures';
+        
+        // Show up to 5 failures on desktop, 3 on mobile
+        const isMobile = window.innerWidth <= 768;
+        const maxShow = isMobile ? 3 : 5;
+        const failuresToShow = statusInfo.failedTests.slice(0, maxShow);
+        
+        failuresToShow.forEach(failure => {
+            const item = document.createElement('div');
+            item.className = 'monitor-tests-tooltip__failure-item';
+            
+            const name = document.createElement('div');
+            name.className = 'monitor-tests-tooltip__failure-name';
+            name.textContent = `✗ ${failure.name}`;
+            item.appendChild(name);
+            
+            if (failure.error || failure.code) {
+                const details = document.createElement('div');
+                details.className = 'monitor-tests-tooltip__failure-details';
+                const parts = [];
+                if (failure.code) parts.push(`HTTP ${failure.code}`);
+                if (failure.error) parts.push(failure.error);
+                details.textContent = parts.join(' - ');
+                item.appendChild(details);
+            }
+            
+            failuresList.appendChild(item);
+        });
+        
+        body.appendChild(failuresList);
+        
+        if (statusInfo.failedTests.length > maxShow) {
+            const more = document.createElement('div');
+            more.className = 'monitor-tests-tooltip__more';
+            more.textContent = `... +${statusInfo.failedTests.length - maxShow} more. Open editor for details.`;
+            body.appendChild(more);
+        }
+    }
+    
+    tooltip.appendChild(body);
+    
+    // Footer with last run time
+    if (project.monitor && project.monitor.state && project.monitor.state.lastRunAt) {
+        const footer = document.createElement('div');
+        footer.className = 'monitor-tests-tooltip__footer';
+        const formatted = formatMonitorLastRun(project.monitor.state.lastRunAt);
+        footer.textContent = `Last run: ${formatted || 'Unknown'}`;
+        tooltip.appendChild(footer);
+    }
+    
+    return tooltip;
+}
+
+/**
+ * Positions the tooltip relative to the trigger element
+ */
+function positionMonitorTestsTooltip(tooltip, triggerElement) {
+    const triggerRect = triggerElement.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+    const viewportHeight = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+    
+    const spacing = 8;
+    const edgePadding = 8;
+    
+    let top = 0;
+    let left = 0;
+    
+    // Vertical positioning: Try above first, then below if not enough space
+    const spaceAbove = triggerRect.top;
+    const spaceBelow = viewportHeight - triggerRect.bottom;
+    
+    if (spaceAbove >= tooltipRect.height + spacing || spaceAbove > spaceBelow) {
+        // Position above
+        top = triggerRect.top - tooltipRect.height - spacing;
+        tooltip.classList.add('monitor-tests-tooltip--above');
+        tooltip.classList.remove('monitor-tests-tooltip--below');
+    } else {
+        // Position below
+        top = triggerRect.bottom + spacing;
+        tooltip.classList.add('monitor-tests-tooltip--below');
+        tooltip.classList.remove('monitor-tests-tooltip--above');
+    }
+    
+    // Horizontal positioning: RTL-aware, align to right edge
+    const isRTL = document.documentElement.dir === 'rtl' || document.body.dir === 'rtl';
+    
+    if (isRTL) {
+        // RTL: Align to right edge of trigger
+        left = triggerRect.right - tooltipRect.width;
+        
+        // Keep within viewport
+        if (left < edgePadding) {
+            left = edgePadding;
+        }
+        if (left + tooltipRect.width > viewportWidth - edgePadding) {
+            left = viewportWidth - tooltipRect.width - edgePadding;
+        }
+    } else {
+        // LTR: Align to left edge of trigger
+        left = triggerRect.left;
+        
+        // Keep within viewport
+        if (left + tooltipRect.width > viewportWidth - edgePadding) {
+            left = viewportWidth - tooltipRect.width - edgePadding;
+        }
+        if (left < edgePadding) {
+            left = edgePadding;
+        }
+    }
+    
+    // Ensure top is within viewport
+    if (top < edgePadding) {
+        top = edgePadding;
+    }
+    if (top + tooltipRect.height > viewportHeight - edgePadding) {
+        top = viewportHeight - tooltipRect.height - edgePadding;
+    }
+    
+    tooltip.style.position = 'fixed';
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+}
+
+/**
+ * Shows the monitor tests tooltip for a project
+ */
+function showMonitorTestsTooltip(button, project) {
+    // Close any existing tooltip
+    closeAllMonitorTestsTooltips();
+    
+    // Get status info
+    const statusInfo = determineMonitorStatus(project);
+    
+    // Build tooltip
+    const tooltip = buildMonitorTestsTooltip(project, statusInfo);
+    
+    // Add to DOM
+    document.body.appendChild(tooltip);
+    
+    // Position it
+    positionMonitorTestsTooltip(tooltip, button);
+    
+    // Update state
+    monitorTestsTooltipState.activeTooltip = tooltip;
+    monitorTestsTooltipState.activeButton = button;
+    
+    // Update ARIA
+    button.setAttribute('aria-expanded', 'true');
+    button.setAttribute('aria-describedby', tooltip.id);
+    
+    // Animate in
+    requestAnimationFrame(() => {
+        tooltip.classList.add('monitor-tests-tooltip--visible');
+    });
+}
+
+/**
+ * Sets up event listeners for a monitor tests status button
+ */
+function bindMonitorTestsTooltip(button, projectIndex) {
+    if (!button || button.dataset.tooltipBound === 'true') return;
+    
+    const getProject = () => projectsData[projectIndex];
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    
+    // Click/Touch handler
+    button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const project = getProject();
+        if (!project) return;
+        
+        if (monitorTestsTooltipState.activeTooltip && monitorTestsTooltipState.activeButton === button) {
+            closeAllMonitorTestsTooltips();
+        } else {
+            showMonitorTestsTooltip(button, project);
+        }
+    });
+    
+    // Desktop: Hover with delay
+    if (!isTouchDevice) {
+        button.addEventListener('mouseenter', () => {
+            const project = getProject();
+            if (!project) return;
+            
+            monitorTestsTooltipState.closeTimer = setTimeout(() => {
+                showMonitorTestsTooltip(button, project);
+            }, 200);
+        });
+        
+        button.addEventListener('mouseleave', () => {
+            if (monitorTestsTooltipState.closeTimer) {
+                clearTimeout(monitorTestsTooltipState.closeTimer);
+                monitorTestsTooltipState.closeTimer = null;
+            }
+            
+            // Close after a short delay to allow moving to tooltip
+            setTimeout(() => {
+                if (monitorTestsTooltipState.activeButton === button) {
+                    closeAllMonitorTestsTooltips();
+                }
+            }, 150);
+        });
+    }
+    
+    // Keyboard: Enter/Space to toggle, Escape to close
+    button.addEventListener('keydown', (e) => {
+        const project = getProject();
+        if (!project) return;
+        
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            if (monitorTestsTooltipState.activeTooltip && monitorTestsTooltipState.activeButton === button) {
+                closeAllMonitorTestsTooltips();
+                button.focus();
+            } else {
+                showMonitorTestsTooltip(button, project);
+            }
+        } else if (e.key === 'Escape') {
+            if (monitorTestsTooltipState.activeTooltip && monitorTestsTooltipState.activeButton === button) {
+                closeAllMonitorTestsTooltips();
+                button.focus();
+            }
+        }
+    });
+    
+    button.dataset.tooltipBound = 'true';
+}
+
+// Global event listeners for tooltip management
+(function setupMonitorTestsTooltipGlobalListeners() {
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+        if (!monitorTestsTooltipState.activeTooltip) return;
+        
+        const tooltip = monitorTestsTooltipState.activeTooltip;
+        const button = monitorTestsTooltipState.activeButton;
+        
+        if (!tooltip.contains(e.target) && (!button || !button.contains(e.target))) {
+            closeAllMonitorTestsTooltips();
+        }
+    }, true);
+    
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && monitorTestsTooltipState.activeTooltip) {
+            const button = monitorTestsTooltipState.activeButton;
+            closeAllMonitorTestsTooltips();
+            if (button) {
+                button.focus();
+            }
+        }
+    });
+    
+    // Close on scroll
+    let scrollTimer = null;
+    window.addEventListener('scroll', () => {
+        if (!monitorTestsTooltipState.activeTooltip) return;
+        
+        if (scrollTimer) clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+            closeAllMonitorTestsTooltips();
+        }, 100);
+    }, { passive: true });
+    
+    // Close on resize
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        if (!monitorTestsTooltipState.activeTooltip) return;
+        
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            closeAllMonitorTestsTooltips();
+        }, 100);
+    });
+    
+    // Close when opening modal
+    const originalOpenEditModal = window.openEditModal;
+    if (typeof originalOpenEditModal === 'function') {
+        window.openEditModal = function(...args) {
+            closeAllMonitorTestsTooltips();
+            return originalOpenEditModal.apply(this, args);
+        };
+    }
+})();
+
+// ============== End Monitor Tests Tooltip Management ==============
+
 const MONITOR_STATUS_CLASSES = ['monitor-pass', 'monitor-partial', 'monitor-fail', 'monitor-unknown'];
 const MONITOR_STATUS_LABELS = {
     pass: 'Pass',
@@ -917,44 +1331,134 @@ const MONITOR_STATUS_LABELS = {
     unknown: 'Not checked'
 };
 
+/**
+ * Determines monitor status based on project monitor state
+ * @param {Object} project - Project object with monitor configuration
+ * @returns {Object} Status information {status: string, label: string, tooltip: string, failedTests: Array}
+ */
+function determineMonitorStatus(project) {
+    const result = {
+        status: 'NOT_RUN',
+        label: 'NOT RUN',
+        tooltip: 'Tests have not been run yet',
+        failedTests: [],
+        totalTests: 0,
+        passedTests: 0
+    };
+
+    if (!project || !project.monitor) {
+        result.status = 'NO_TESTS';
+        result.label = 'NO TESTS';
+        result.tooltip = 'No tests configured for this project';
+        return result;
+    }
+
+    const monitor = project.monitor;
+    const tests = Array.isArray(monitor.tests) ? monitor.tests : [];
+    const state = monitor.state || {};
+
+    result.totalTests = tests.length;
+
+    // NO_TESTS: אין בדיקות מוגדרות
+    if (tests.length === 0) {
+        result.status = 'NO_TESTS';
+        result.label = 'NO TESTS';
+        result.tooltip = 'No tests configured';
+        return result;
+    }
+
+    // NOT_RUN: יש בדיקות אבל מעולם לא רצו
+    if (!state.lastRunAt || !state.tests || Object.keys(state.tests).length === 0) {
+        result.status = 'NOT_RUN';
+        result.label = 'NOT RUN';
+        result.tooltip = `${tests.length} test${tests.length > 1 ? 's' : ''} configured but not yet run`;
+        return result;
+    }
+
+    // ספירת תוצאות
+    const testsState = state.tests || {};
+    const failures = [];
+    let passed = 0;
+    let failed = 0;
+
+    tests.forEach(test => {
+        const testId = test.id;
+        const testState = testsState[testId];
+        
+        if (testState) {
+            if (testState.status === 'pass') {
+                passed++;
+            } else if (testState.status === 'fail') {
+                failed++;
+                failures.push({
+                    id: testId,
+                    name: test.name || testId,
+                    error: testState.lastError,
+                    code: testState.lastCode
+                });
+            }
+        }
+    });
+
+    result.passedTests = passed;
+    result.failedTests = failures;
+
+    // PASS: כל הבדיקות עברו
+    if (passed === tests.length) {
+        result.status = 'PASS';
+        result.label = 'PASSED';
+        result.tooltip = `All ${tests.length} test${tests.length > 1 ? 's' : ''} passed`;
+        return result;
+    }
+
+    // FAIL: יש כשלים (partial נחשב גם כ-FAIL)
+    if (failed > 0) {
+        result.status = 'FAIL';
+        result.label = 'FAILED';
+        const failedNames = failures.slice(0, 3).map(f => f.name).join(', ');
+        const moreCount = failures.length > 3 ? ` +${failures.length - 3} more` : '';
+        result.tooltip = `${failed} of ${tests.length} tests failed: ${failedNames}${moreCount}`;
+        return result;
+    }
+
+    // ברירת מחדל
+    result.status = 'NOT_RUN';
+    result.label = 'NOT RUN';
+    result.tooltip = 'Test status unclear';
+    return result;
+}
+
 function decorateCardWithMonitorStatus(card, project, index) {
     const cardBody = card.querySelector('.card-body');
     if (!cardBody) return;
 
-    let urlIndicator = card.querySelector(`.status-indicator[data-index="${index}"]`);
-    if (urlIndicator) {
-        urlIndicator.removeAttribute('style');
-        urlIndicator.classList.add('status-indicator-url');
-        urlIndicator.title = 'URL status: Not checked';
-    } else {
-        urlIndicator = document.createElement('div');
-        urlIndicator.className = 'status-indicator status-indicator-url';
-        urlIndicator.dataset.index = String(index);
-        urlIndicator.title = 'URL status: Not checked';
-    }
-
-    const statusGroup = document.createElement('div');
-    statusGroup.className = 'status-indicator-group';
-    statusGroup.appendChild(urlIndicator);
-
-    const monitorIndicator = document.createElement('div');
-    monitorIndicator.className = 'status-indicator monitor-indicator monitor-unknown';
-    monitorIndicator.dataset.monitorIndex = String(index);
-    statusGroup.appendChild(monitorIndicator);
-
-    const statusBar = document.createElement('div');
-    statusBar.className = 'card-status-bar';
-    statusBar.appendChild(statusGroup);
-
-    const lastRunInfo = document.createElement('span');
-    lastRunInfo.className = 'monitor-last-run';
-    lastRunInfo.textContent = 'Last check: -';
-    statusBar.appendChild(lastRunInfo);
-
-    cardBody.appendChild(statusBar);
-
-
-    updateMonitorIndicator(project, monitorIndicator, lastRunInfo);
+    // שורת Tests חדשה - בתחתית הכרטיס
+    const testsStatus = determineMonitorStatus(project);
+    
+    const testsRow = document.createElement('div');
+    testsRow.className = 'monitor-tests-status';
+    testsRow.dataset.projectIndex = String(index);
+    testsRow.setAttribute('role', 'button');
+    testsRow.setAttribute('tabindex', '0');
+    testsRow.setAttribute('aria-label', `Tests: ${testsStatus.label}`);
+    testsRow.setAttribute('aria-expanded', 'false');
+    
+    const testsLabel = document.createElement('span');
+    testsLabel.className = 'monitor-tests-label';
+    testsLabel.textContent = 'Tests:';
+    
+    const testsValue = document.createElement('span');
+    testsValue.className = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
+    testsValue.textContent = testsStatus.label;
+    testsValue.title = testsStatus.tooltip;
+    
+    testsRow.appendChild(testsLabel);
+    testsRow.appendChild(testsValue);
+    
+    cardBody.appendChild(testsRow);
+    
+    // Bind tooltip functionality
+    bindMonitorTestsTooltip(testsRow, index);
 }
 
 function updateMonitorIndicator(project, indicatorEl, lastRunEl) {
@@ -1001,6 +1505,100 @@ function updateMonitorIndicator(project, indicatorEl, lastRunEl) {
     if (lastRunEl) {
         lastRunEl.textContent = lastRunLabel;
     }
+
+    // We keep cards a fixed size: tooltip only.
+    const card = indicatorEl.closest('.card');
+    if (card) {
+        const failuresEl = card.querySelector('.monitor-failures');
+        if (failuresEl) failuresEl.remove();
+    }
+}
+
+// Tooltip state (single open tooltip at a time)
+let monitorOpenTooltip = null;
+function closeMonitorTooltip() {
+    if (monitorOpenTooltip && monitorOpenTooltip.parentElement) {
+        monitorOpenTooltip.parentElement.removeChild(monitorOpenTooltip);
+    }
+    monitorOpenTooltip = null;
+}
+
+function buildChipTooltipContent(project) {
+    const container = document.createElement('div');
+    container.className = 'monitor-tooltip';
+    container.setAttribute('role', 'tooltip');
+    const header = document.createElement('div');
+    header.className = 'monitor-tooltip__header';
+    const monitor = project && project.monitor ? project.monitor : null;
+    const state = monitor && monitor.state ? monitor.state : null;
+    const overall = state && state.overall ? state.overall : 'unknown';
+    header.textContent = 'Test status: ' + (MONITOR_STATUS_LABELS[overall] || 'Unknown');
+    container.appendChild(header);
+
+    // Build test list from configured tests and state
+    const tests = Array.isArray(monitor && monitor.tests) ? monitor.tests : [];
+    const testsState = (state && state.tests) ? state.tests : {};
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const limit = isTouch ? 5 : 7;
+    let shown = 0;
+    tests.forEach((t) => {
+        if (shown >= limit) return;
+        const st = t && t.id ? testsState[t.id] : null;
+        const s = st && st.status ? st.status : 'unknown';
+        const line = document.createElement('div');
+        line.className = 'monitor-tooltip__item';
+        const prefix = s === 'pass' ? '✓' : (s === 'fail' ? '✗' : '•');
+        line.textContent = `${prefix} ${t && t.name ? t.name : (t && t.id ? t.id : 'Test')}`;
+        container.appendChild(line);
+        shown += 1;
+    });
+    if (tests.length > shown) {
+        const more = document.createElement('div');
+        more.className = 'monitor-tooltip__item';
+        more.textContent = `... +${tests.length - shown} more. Open editor for details`;
+        container.appendChild(more);
+    }
+    const footer = document.createElement('div');
+    footer.className = 'monitor-tooltip__footer';
+    // We don't reliably know URL status; show simple label derived from edit URL presence
+    footer.textContent = 'URL status: ' + (project && project.url ? '✓' : '•');
+    container.appendChild(footer);
+    return container;
+}
+
+function bindMonitorChipTooltip(chip, index) {
+    if (!chip) return;
+    const getProject = () => projectsData[index];
+    const open = () => {
+        closeMonitorTooltip();
+        const tooltip = buildChipTooltipContent(getProject());
+        document.body.appendChild(tooltip);
+        // Position near chip
+        const rect = chip.getBoundingClientRect();
+        let left = rect.left;
+        let top = rect.bottom + 8;
+        const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+        const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+        if (left + tooltip.offsetWidth > vw - 8) {
+            left = Math.max(8, vw - tooltip.offsetWidth - 8);
+        }
+        if (top + tooltip.offsetHeight > vh - 8) {
+            top = Math.max(8, rect.top - tooltip.offsetHeight - 8);
+        }
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+        monitorOpenTooltip = tooltip;
+    };
+    const close = () => closeMonitorTooltip();
+
+    let hoverTimer = null;
+    chip.addEventListener('mouseenter', () => { if (!('ontouchstart' in window)) open(); });
+    chip.addEventListener('mouseleave', () => { if (!('ontouchstart' in window)) close(); });
+    chip.addEventListener('click', (e) => { e.stopPropagation(); if ('ontouchstart' in window) { if (monitorOpenTooltip) close(); else open(); } });
+    chip.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); open(); } });
+    document.addEventListener('click', (e) => { if (monitorOpenTooltip) close(); }, { capture: true });
+    window.addEventListener('scroll', () => { if (monitorOpenTooltip) close(); }, { passive: true });
+    window.addEventListener('resize', () => { if (monitorOpenTooltip) close(); });
 }
 
 function formatMonitorLastRun(value) {
@@ -1564,6 +2162,9 @@ function renderMonitorTestsEditor() {
         console.error('renderMonitorTestsEditor - Missing elements!', { testsEditor, testsList, testsEmpty, testsControls });
         return;
     }
+    const projectIndex = monitorEditContext && typeof monitorEditContext.projectIndex === 'number' ? monitorEditContext.projectIndex : null;
+    const projectForStates = projectIndex !== null ? projectsData[projectIndex] : null;
+    const lastStates = projectForStates && projectForStates.monitor && projectForStates.monitor.state && projectForStates.monitor.state.tests ? projectForStates.monitor.state.tests : {};
     
     console.log('renderMonitorTestsEditor - tests count:', monitorEditContext.tests.length);
     console.log('renderMonitorTestsEditor - tests:', monitorEditContext.tests);
@@ -1578,6 +2179,12 @@ function renderMonitorTestsEditor() {
         monitorEditContext.tests.forEach((test, index) => {
             console.log('renderMonitorTestsEditor - Creating card for test', index, test);
             const card = createTestEditorCard(test, index);
+            try {
+                const st = lastStates && test && test.id ? lastStates[test.id] : null;
+                if (st && st.status === 'fail') {
+                    card.classList.add('monitor-test-card--failed');
+                }
+            } catch (e) { /* ignore */ }
             console.log('renderMonitorTestsEditor - Created card:', card);
             testsEditor.appendChild(card);
         });
@@ -1754,6 +2361,10 @@ function createTestCheckboxGroup(test, index, fieldName, labelText) {
     checkbox.checked = Boolean(test[fieldName]);
     checkbox.dataset.testIndex = String(index);
     checkbox.dataset.field = fieldName;
+    // Tooltip to explain behavior
+    checkbox.setAttribute('title', fieldName === 'required'
+        ? 'Critical test — overall run becomes Fail if this test fails'
+        : 'Requires authentication — adds token from login flow');
     addMonitorEditListener(checkbox, 'change', (event) => {
         monitorEditContext.tests[index][fieldName] = event.target.checked;
         setMonitorDirty(true);
@@ -2175,6 +2786,12 @@ function initializeMonitorUI() {
             saveEdit();
         });
     }
+    // Bind example loader button in empty state
+    const loadExampleBtn = document.getElementById('load-example-button');
+    if (loadExampleBtn && !loadExampleBtn.dataset.bound) {
+        loadExampleBtn.addEventListener('click', loadMonitorExample);
+        loadExampleBtn.dataset.bound = 'true';
+    }
     const editForm = document.getElementById('edit-form');
     if (editForm) {
         editForm.addEventListener('submit', (e) => {
@@ -2182,6 +2799,108 @@ function initializeMonitorUI() {
         });
     }
     updateMonitorActionButtons();
+}
+
+function loadMonitorExample() {
+    try {
+        if (!monitorEditContext || !monitorEditContext.isEditing) return;
+        const exampleConfig = {
+            baseUrl: "https://jsonplaceholder.typicode.com",
+            login: {
+                enabled: false,
+                path: "/auth/login",
+                method: "POST",
+                username: "",
+                password: "",
+                bodyTemplate: "",
+                tokenLocation: "json:token",
+                tokenHeaderName: "Authorization",
+                tokenPrefix: "Bearer ",
+                persistPassword: false
+            },
+            tests: [
+                {
+                    id: generateTestId(),
+                    name: "Get Posts",
+                    method: "GET",
+                    path: "/posts",
+                    expectedStatus: [200],
+                    bodyTemplate: "",
+                    headers: {},
+                    required: true,
+                    requiresLogin: false
+                },
+                {
+                    id: generateTestId(),
+                    name: "Create Post",
+                    method: "POST",
+                    path: "/posts",
+                    expectedStatus: [201],
+                    bodyTemplate: '{"title":"Test Post","body":"Example content","userId":1}',
+                    headers: { "Content-Type": "application/json" },
+                    required: true,
+                    requiresLogin: false
+                },
+                {
+                    id: generateTestId(),
+                    name: "Delete Post",
+                    method: "DELETE",
+                    path: "/posts/1",
+                    expectedStatus: [200],
+                    bodyTemplate: "",
+                    headers: {},
+                    required: false,
+                    requiresLogin: false
+                }
+            ],
+            schedule: { enabled: false, intervalSec: 300 }
+        };
+
+        setMonitorTextValue('monitor-base-url', exampleConfig.baseUrl);
+        // Load tests into edit context
+        monitorEditContext.tests = prepareMonitorTestsForEdit({ tests: exampleConfig.tests });
+        setMonitorDirty(true);
+        renderMonitorTestsEditor();
+        showMonitorToast('pass', 'Example Loaded', 'JSONPlaceholder demo configuration loaded. Click Save to apply.');
+    } catch (err) {
+        console.warn('Failed to load monitor example:', err);
+        showMonitorToast('fail', 'Example load failed', 'Could not load demo configuration.');
+    }
+}
+
+async function runProjectPreview(index) {
+    try {
+        const modal = document.getElementById('edit-modal');
+        if (!modal) return;
+        const project = projectsData[index];
+        if (!project) return;
+        // Validate and collect current form without saving
+        const collected = collectMonitorFromForm(modal, project);
+        if (!collected) {
+            showMonitorToast('unknown', 'Cannot run', 'Fix validation errors before running.');
+            return;
+        }
+        const original = project.monitor ? cloneMonitorData(project.monitor) : createDefaultMonitor();
+        const tempMonitor = {
+            ...cloneMonitorData(original),
+            baseUrl: collected.baseUrl,
+            login: { ...original.login, ...collected.login },
+            tests: collected.tests,
+            schedule: { ...original.schedule, ...collected.schedule }
+        };
+        mergeDefaults(tempMonitor, DEFAULT_MONITOR_TEMPLATE);
+        // Swap to temporary monitor
+        project.monitor = tempMonitor;
+        try {
+            await runProjectChecks(index, { mode: 'manual', source: 'modal', preview: true });
+        } finally {
+            // Restore original monitor configuration
+            project.monitor = original;
+        }
+    } catch (e) {
+        console.warn('Preview run failed:', e);
+        showMonitorToast('fail', 'Run failed', 'Unexpected error during preview run.');
+    }
 }
 
 
@@ -2484,25 +3203,83 @@ function openEditModal(index) {
         return;
     }
 
-    let fieldsHTML = "";
-    for (let i = 1; i <= 4; i++) {
-        const fieldName = project.fieldNames?.[i] || `שדה ${i}`;
-        const fieldValue = project.fields?.[i] || "";
-
-        fieldsHTML += `
+    // Dynamic informative fields (up to 4). Start with existing count or at least 1
+    const computeInitialCount = () => {
+        let count = 0;
+        for (let i = 1; i <= 4; i++) {
+            const hasName = project.fieldNames && project.fieldNames[i];
+            const hasVal = project.fields && project.fields[i];
+            if (hasName || hasVal) count = i;
+        }
+        return Math.max(1, count);
+    };
+    const renderFieldBlock = (i, nameVal, valueVal) => `
             <label for="edit-field-name-${i}">שם שדה ${i}:</label>
-            <input type="text" id="edit-field-name-${i}" value="${escapeHTML(fieldName)}" maxlength="15">
+            <input type="text" id="edit-field-name-${i}" value="${escapeHTML(nameVal ?? `Field ${i}`)}" maxlength="15">
 
             <label for="edit-field-value-${i}">ערך שדה ${i}:</label>
-            <input type="text" id="edit-field-value-${i}" value="${escapeHTML(fieldValue)}" maxlength="20">
+            <input type="text" id="edit-field-value-${i}" value="${escapeHTML(valueVal ?? 'No value')}" maxlength="20">
         `;
+
+    let fieldsHTML = "";
+    const initialCount = computeInitialCount();
+    for (let i = 1; i <= initialCount; i++) {
+        const fieldName = project.fieldNames?.[i] ?? `Field ${i}`;
+        const fieldValue = project.fields?.[i] ?? 'No value';
+        fieldsHTML += renderFieldBlock(i, fieldName, fieldValue);
     }
+    fieldsHTML += `
+        <div class="dynamic-add-wrapper">
+            <button type="button" id="edit-add-field-button" class="monitor-ghost-button dynamic-plus" aria-label="Add field">+</button>
+            <button type="button" id="edit-remove-field-button" class="monitor-ghost-button dynamic-minus" aria-label="Remove field">–</button>
+        </div>
+    `;
         
     const editURL = document.getElementById("edit-url");
     if (editURL) {
         editURL.value = project.url || "";
     }
     fieldsContainer.innerHTML = fieldsHTML;
+    // Wire the plus/minus buttons to add/remove fields (1..4)
+    const editPlus = document.getElementById('edit-add-field-button');
+    const editMinus = document.getElementById('edit-remove-field-button');
+    const getEditCount = () => fieldsContainer.querySelectorAll('input[id^="edit-field-name-"]').length;
+    const updateEditButtons = () => {
+        const count = getEditCount();
+        if (editPlus) editPlus.style.display = count >= 4 ? 'none' : '';
+        if (editMinus) editMinus.disabled = count <= 1;
+    };
+    if (editPlus) {
+        editPlus.addEventListener('click', (e) => {
+            try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch(_) {}
+            const current = getEditCount();
+            if (current >= 4) return;
+            const idx = current + 1;
+            const fragment = document.createElement('div');
+            fragment.innerHTML = renderFieldBlock(idx, `Field ${idx}`, 'No value');
+            const wrapper = fieldsContainer.querySelector('.dynamic-add-wrapper');
+            if (wrapper) {
+                const nodes = Array.from(fragment.childNodes);
+                nodes.forEach(node => fieldsContainer.insertBefore(node, wrapper));
+            }
+            updateEditButtons();
+        });
+    }
+    if (editMinus) {
+        editMinus.addEventListener('click', (e) => {
+            try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch(_) {}
+            const current = getEditCount();
+            if (current <= 1) return;
+            const idx = current;
+            const nameInput = document.getElementById(`edit-field-name-${idx}`);
+            const valueInput = document.getElementById(`edit-field-value-${idx}`);
+            const nameLabel = fieldsContainer.querySelector(`label[for="edit-field-name-${idx}"]`);
+            const valueLabel = fieldsContainer.querySelector(`label[for="edit-field-value-${idx}"]`);
+            [nameInput, valueInput, nameLabel, valueLabel].forEach(el => el && el.remove());
+            updateEditButtons();
+        });
+    }
+    updateEditButtons();
 
     // Show the modal
     const editModal = document.getElementById('edit-modal');
@@ -2643,19 +3420,60 @@ function openAddModal() {
         if (fieldValueInput) fieldValueInput.value = '';
     }
 
-    // Generate field inputs if container exists
+    // Generate dynamic field inputs (start with one, allow up to 4)
     const addFieldsContainer = document.getElementById('add-fields-container');
     if (addFieldsContainer) {
-        let fieldsHTML = '';
-        for (let i = 1; i <= 4; i++) {
-            fieldsHTML += `
-                <label for="add-field-name-${i}">שם שדה ${i}:</label>
-                <input type="text" id="add-field-name-${i}" maxlength="15">
-                <label for="add-field-value-${i}">ערך שדה ${i}:</label>
-                <input type="text" id="add-field-value-${i}" maxlength="20">
-            `;
+        const renderAddBlock = (i) => `
+            <label for="add-field-name-${i}">שם שדה ${i}:</label>
+            <input type="text" id="add-field-name-${i}" maxlength="15" placeholder="Field ${i}">
+            <label for="add-field-value-${i}">ערך שדה ${i}:</label>
+            <input type="text" id="add-field-value-${i}" maxlength="20" placeholder="No value">
+        `;
+        addFieldsContainer.innerHTML = renderAddBlock(1) + `
+            <div class="dynamic-add-wrapper">
+                <button type="button" id="add-add-field-button" class="monitor-ghost-button dynamic-plus" aria-label="Add field">+</button>
+                <button type="button" id="add-remove-field-button" class="monitor-ghost-button dynamic-minus" aria-label="Remove field">–</button>
+            </div>
+        `;
+        const addPlus = document.getElementById('add-add-field-button');
+        const addMinus = document.getElementById('add-remove-field-button');
+        const getAddCount = () => addFieldsContainer.querySelectorAll('input[id^="add-field-name-"]').length;
+        const updateAddButtons = () => {
+            const count = getAddCount();
+            if (addPlus) addPlus.style.display = count >= 4 ? 'none' : '';
+            if (addMinus) addMinus.disabled = count <= 1;
+        };
+        if (addPlus) {
+            addPlus.addEventListener('click', (e) => {
+                try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch(_) {}
+                const current = getAddCount();
+                if (current >= 4) return;
+                const idx = current + 1;
+                const frag = document.createElement('div');
+                frag.innerHTML = renderAddBlock(idx);
+                const wrapper = addFieldsContainer.querySelector('.dynamic-add-wrapper');
+                if (wrapper) {
+                    const nodes = Array.from(frag.childNodes);
+                    nodes.forEach(n => addFieldsContainer.insertBefore(n, wrapper));
+                }
+                updateAddButtons();
+            });
         }
-        addFieldsContainer.innerHTML = fieldsHTML;
+        if (addMinus) {
+            addMinus.addEventListener('click', (e) => {
+                try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch(_) {}
+                const current = getAddCount();
+                if (current <= 1) return;
+                const idx = current;
+                const nameInput = document.getElementById(`add-field-name-${idx}`);
+                const valueInput = document.getElementById(`add-field-value-${idx}`);
+                const nameLabel = addFieldsContainer.querySelector(`label[for="add-field-name-${idx}"]`);
+                const valueLabel = addFieldsContainer.querySelector(`label[for="add-field-value-${idx}"]`);
+                [nameInput, valueInput, nameLabel, valueLabel].forEach(el => el && el.remove());
+                updateAddButtons();
+            });
+        }
+        updateAddButtons();
     }
 
     addModal.style.display = 'flex';
@@ -2930,16 +3748,24 @@ window.addEventListener('beforeunload', () => {
 
 function checkProjectStatuses() {
     projectsData.forEach((project, index) => {
-        const indicator = document.querySelector(`.status-indicator[data-index="${index}"]`);
+        const indicator = document.querySelector(`.url-indicator[data-index="${index}"]`) || document.querySelector(`.status-indicator[data-index="${index}"]`);
         if (!indicator) return;
 
         const setStatus = (color, title) => {
-            indicator.style.backgroundColor = color;
-            indicator.title = title;
+            // switch by classes instead of inline colors when possible
+            indicator.classList.remove('url-up', 'url-down', 'url-unknown');
+            if (color === '#8DC71E' || color === 'up') {
+                indicator.classList.add('url-up');
+            } else if (color === '#ff0033' || color === 'down') {
+                indicator.classList.add('url-down');
+            } else {
+                indicator.classList.add('url-unknown');
+            }
+            if (title) indicator.title = title;
         };
 
         if (!project.url || !project.url.trim()) {
-            setStatus('#e0e0e0', 'לא הוזנה כתובת לבדיקה');
+            setStatus('unknown', 'לא הוזנה כתובת לבדיקה');
             return;
         }
 
@@ -2947,16 +3773,16 @@ function checkProjectStatuses() {
         try {
             targetUrl = new URL(project.url);
         } catch (error) {
-            setStatus('#e0e0e0', 'כתובת URL אינה תקינה');
+            setStatus('unknown', 'כתובת URL אינה תקינה');
             return;
         }
 
         fetch(targetUrl.toString(), { method: 'HEAD', mode: 'no-cors' })
             .then(() => {
-                setStatus('#8DC71E', 'האתר זמין (בדיקת no-cors)');
+                setStatus('up', 'האתר זמין (בדיקת no-cors)');
             })
             .catch(() => {
-                setStatus('#ff0033', 'לא ניתן לפנות לכתובת (שגיאת רשת או חסימת CORS)');
+                setStatus('down', 'לא ניתן לפנות לכתובת (שגיאת רשת או חסימת CORS)');
             });
     });
 }

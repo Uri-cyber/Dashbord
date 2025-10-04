@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>דשבורד צוות בדיקות</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+      /* Monitor layout final overrides */
+      .monitor-grid{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:12px}
+      @media (max-width:768px){.monitor-grid{grid-template-columns:1fr}}
+      .monitor-schedule-grid{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:12px}
+      @media (max-width:768px){.monitor-schedule-grid{grid-template-columns:1fr}}
+      #monitor-run-button{grid-column:1/-1;width:100%}
+      .monitor-field-group--checkbox .monitor-checkbox-line{display:grid;grid-template-columns:1fr max-content;align-items:center;column-gap:10px;inline-size:100%;box-sizing:border-box;padding:8px 6px;min-height:40px;border:1px solid rgba(0,0,0,.2);border-radius:6px;background:#fff;margin:0}
+      .monitor-field-group--checkbox .monitor-checkbox-line input[type=checkbox]{margin:0;grid-column:2;justify-self:end;align-self:center}
+      .monitor-field-group--checkbox .monitor-checkbox-line span{grid-column:1;text-align:right;white-space:nowrap;align-self:center}
+      body.dark .monitor-field-group--checkbox .monitor-checkbox-line{background:var(--card-bg);border-color:rgba(255,255,255,.25)}
+    </style>
 </head>
 <body>
     <header>
@@ -40,21 +52,29 @@
                         <div class="monitor-tablist" role="tablist" aria-orientation="horizontal">
                             <button type="button" class="monitor-tab is-active" id="monitor-tab-tests" role="tab" aria-selected="true" aria-controls="monitor-panel-tests" data-default-tab="true">
                                 <span class="monitor-tab-label">Tests</span>
+                                <span class="monitor-tab-info" title="Define individual API checks. Each test runs against your base URL in sequence.">ⓘ</span>
                                 <span class="monitor-tab-badge" id="monitor-tab-tests-badge">0</span>
                             </button>
                             <button type="button" class="monitor-tab" id="monitor-tab-api-auth" role="tab" aria-selected="false" aria-controls="monitor-panel-api-auth">
                                 <span class="monitor-tab-label">API & Auth</span>
+                                <span class="monitor-tab-info" title="Configure base URL and authentication flow. Runs once before all tests.">ⓘ</span>
                                 <span class="monitor-tab-status" id="monitor-tab-auth-status">✓</span>
                             </button>
                             <button type="button" class="monitor-tab" id="monitor-tab-schedule" role="tab" aria-selected="false" aria-controls="monitor-panel-schedule">
                                 <span class="monitor-tab-label">Schedule</span>
+                                <span class="monitor-tab-info" title="Enable automatic monitoring. Tests run at specified intervals in the background.">ⓘ</span>
                                 <span class="monitor-tab-status" id="monitor-tab-schedule-status">⏰</span>
                             </button>
                         </div>
                         <div class="monitor-panels">
                             <section class="monitor-panel is-active" id="monitor-panel-tests" role="tabpanel" aria-labelledby="monitor-tab-tests" tabindex="0">
                                 <div id="monitor-tests-empty" class="monitor-tests-empty">
-                                    <p>No tests configured for this project yet.</p>
+                                    <h3>No tests configured</h3>
+                                    <p>Tests automatically check your API endpoints and report results.</p>
+                                    <p><strong>Quick start:</strong> Load an example or add your first test below.</p>
+                                    <button type="button" class="monitor-ghost-button" id="load-example-button">
+                                        Load JSONPlaceholder Example
+                                    </button>
                                 </div>
                                 <div id="monitor-tests-list" class="monitor-tests-list" hidden></div>
                                 <div id="monitor-tests-editor" class="monitor-tests-editor" hidden></div>
@@ -207,8 +227,6 @@
     <script src="script.js"></script>
 </body>
 </html>
-
-
 
 
 
