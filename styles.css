@@ -935,6 +935,10 @@ body.dark .monitor-tab:focus-visible {
     gap: 12px;
 }
 
+/* Ensure only the active monitor panel is visible */
+.monitor-panels > .monitor-panel { display: none; }
+.monitor-panels > .monitor-panel.is-active { display: flex; }
+
 .monitor-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -1428,4 +1432,3 @@ body.dark .monitor-toast--unknown {
         font-size: 0.76rem;
     }
 }
-

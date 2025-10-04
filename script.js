@@ -1033,12 +1033,28 @@ function activateMonitorTab(container, tab) {
         const isActivePanel = panel.id === targetId;
         panel.classList.toggle('is-active', isActivePanel);
         panel.hidden = !isActivePanel;
+        // Force visibility to avoid CSS conflicts
+        try {
+            panel.style.display = isActivePanel ? 'flex' : 'none';
+        } catch (e) {}
         panel.setAttribute('tabindex', isActivePanel ? '0' : '-1');
         if (isActivePanel) {
             panel.setAttribute('aria-labelledby', tab.id);
         }
     });
     container.dataset.activeTab = tab.id;
+
+    // Also ensure the Tests editor UI is only visible on the Tests tab
+    try {
+        const testsActive = targetId === 'monitor-panel-tests';
+        const testsEditor = document.getElementById('monitor-tests-editor');
+        const testsControls = document.getElementById('monitor-tests-controls');
+        const testsList = document.getElementById('monitor-tests-list');
+        if (testsEditor) testsEditor.hidden = !testsActive;
+        if (testsControls) testsControls.hidden = !testsActive;
+        // When leaving Tests, keep list hidden to avoid flicker
+        if (!testsActive && testsList) testsList.hidden = true;
+    } catch (e) {}
 }
 function setupMonitorTabs(container) {
     if (!container) return;
@@ -2977,4 +2993,3 @@ function checkLocalConnectivity() {
 
 setTimeout(checkLocalConnectivity, 2000);
 setInterval(checkLocalConnectivity, 60000);
-
