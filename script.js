@@ -583,7 +583,9 @@ function updateMonitorIndicatorsForProject(index) {
                 if (testsValue) {
                     testsValue.className = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
                     testsValue.textContent = testsStatus.label;
-                    testsValue.title = testsStatus.tooltip;
+                    //testsValue.title = testsStatus.tooltip;
+                    testsValue.removeAttribute('title');
+                    testsValue.setAttribute('aria-label', testsStatus.tooltip);
                 }
             }
         }
@@ -1450,7 +1452,9 @@ function decorateCardWithMonitorStatus(card, project, index) {
     const testsValue = document.createElement('span');
     testsValue.className = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
     testsValue.textContent = testsStatus.label;
-    testsValue.title = testsStatus.tooltip;
+    // testsValue.title = testsStatus.tooltip;
+    testsValue.removeAttribute('title');
+    testsValue.setAttribute('aria-label', testsStatus.tooltip);
     
     testsRow.appendChild(testsLabel);
     testsRow.appendChild(testsValue);

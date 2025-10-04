@@ -1961,3 +1961,10 @@ body.dark .monitor-toast--unknown {
         font-size: 0.76rem;
     }
 }
+
+/* Force GREEN when site is UP */
+.url-indicator.url-up,
+.status-indicator.url-up {
+  background: #30d158 !important;  /* ירוק */
+  border-color: #30d158 !important;
+}
