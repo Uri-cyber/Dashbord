@@ -38,18 +38,32 @@
 
                     <div id="monitor-tabs" class="monitor-tabs" data-monitor-ui="true" data-monitor-readonly="true" hidden>
                         <div class="monitor-tablist" role="tablist" aria-orientation="horizontal">
-                            <button type="button" class="monitor-tab is-active" id="monitor-tab-api-auth" role="tab" aria-selected="true" aria-controls="monitor-panel-api-auth" data-default-tab="true">
-                                API &amp; Auth
+                            <button type="button" class="monitor-tab is-active" id="monitor-tab-tests" role="tab" aria-selected="true" aria-controls="monitor-panel-tests" data-default-tab="true">
+                                <span class="monitor-tab-label">Tests</span>
+                                <span class="monitor-tab-badge" id="monitor-tab-tests-badge">0</span>
                             </button>
-                            <button type="button" class="monitor-tab" id="monitor-tab-tests" role="tab" aria-selected="false" aria-controls="monitor-panel-tests">
-                                Tests
+                            <button type="button" class="monitor-tab" id="monitor-tab-api-auth" role="tab" aria-selected="false" aria-controls="monitor-panel-api-auth">
+                                <span class="monitor-tab-label">API & Auth</span>
+                                <span class="monitor-tab-status" id="monitor-tab-auth-status">✓</span>
                             </button>
                             <button type="button" class="monitor-tab" id="monitor-tab-schedule" role="tab" aria-selected="false" aria-controls="monitor-panel-schedule">
-                                Schedule
+                                <span class="monitor-tab-label">Schedule</span>
+                                <span class="monitor-tab-status" id="monitor-tab-schedule-status">⏰</span>
                             </button>
                         </div>
                         <div class="monitor-panels">
-                            <section class="monitor-panel is-active" id="monitor-panel-api-auth" role="tabpanel" aria-labelledby="monitor-tab-api-auth" tabindex="0">
+                            <section class="monitor-panel is-active" id="monitor-panel-tests" role="tabpanel" aria-labelledby="monitor-tab-tests" tabindex="0">
+                                <div id="monitor-tests-empty" class="monitor-tests-empty">
+                                    <p>No tests configured for this project yet.</p>
+                                </div>
+                                <div id="monitor-tests-list" class="monitor-tests-list" hidden></div>
+                                <div id="monitor-tests-editor" class="monitor-tests-editor" hidden></div>
+                                <div class="monitor-tests-controls" id="monitor-tests-controls" hidden>
+                                    <button type="button" class="monitor-ghost-button monitor-tests-add" id="monitor-tests-add-button">Add test</button>
+                                </div>
+                                <p class="monitor-helper monitor-helper-headers">Enter headers as key:value, one per line.</p>
+                            </section>
+                            <section class="monitor-panel" id="monitor-panel-api-auth" role="tabpanel" aria-labelledby="monitor-tab-api-auth" tabindex="-1" hidden>
                                 <div class="monitor-grid">
                                     <div class="monitor-field-group">
                                         <label for="monitor-base-url">Base URL</label>
@@ -112,17 +126,6 @@
                                 </div>
                                 <p class="monitor-warning">Credentials are stored locally (browser storage). For non-production use only.</p>
                             </section>
-                            <section class="monitor-panel" id="monitor-panel-tests" role="tabpanel" aria-labelledby="monitor-tab-tests" tabindex="-1" hidden>
-                                <div id="monitor-tests-empty" class="monitor-tests-empty">
-                                    <p>No tests configured for this project yet.</p>
-                                </div>
-                                <div id="monitor-tests-list" class="monitor-tests-list" hidden></div>
-                                <div id="monitor-tests-editor" class="monitor-tests-editor" hidden></div>
-                                <div class="monitor-tests-controls" id="monitor-tests-controls" hidden>
-                                    <button type="button" class="monitor-ghost-button monitor-tests-add" id="monitor-tests-add-button">Add test</button>
-                                </div>
-                                <p class="monitor-helper monitor-helper-headers">Enter headers as key:value, one per line.</p>
-                            </section>
                             <section class="monitor-panel" id="monitor-panel-schedule" role="tabpanel" aria-labelledby="monitor-tab-schedule" tabindex="-1" hidden>
                                 <div class="monitor-schedule-grid">
                                     <div class="monitor-field-group monitor-field-group--checkbox">
@@ -145,7 +148,6 @@
                     </div>
 
                     <div class="modal-actions">
-                        <button type="button" id="monitor-save-button" class="modal-primary-button" hidden>Save monitor</button>
                         <button type="button" id="monitor-cancel-button" class="modal-secondary-button" hidden>Cancel</button>
                         <button type="button" id="monitor-delete-button" class="modal-danger-button" hidden>Delete project</button>
                         <button type="button" id="edit-form-save-button" onclick="saveEdit()">Save</button>

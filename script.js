@@ -39,6 +39,8 @@ function createDefaultMonitor() {
 }
 
 const MONITOR_REQUEST_TIMEOUT_MS = 15000;
+const MONITOR_SCHEDULE_POLL_INTERVAL_MS = 10000;
+let monitorScheduleTimerId = null;
 const monitorRunControllers = new Map();
 const monitorRunningProjects = new Set();
 const monitorRunContexts = new Map();
@@ -864,11 +866,46 @@ async function runProjectChecks(index, options = {}) {
     showMonitorToast(overall, `Run completed: ${overallLabel}`, body);
 }
 
+function runScheduledMonitorCycle() {
+    if (!Array.isArray(projectsData) || !projectsData.length) {
+        return;
+    }
+    const now = Date.now();
+    projectsData.forEach((project, index) => {
+        if (!project || typeof project !== 'object') return;
+        const monitor = project.monitor;
+        if (!monitor) return;
+        const schedule = monitor.schedule;
+        if (!schedule || !schedule.enabled) return;
+        if (monitorRunningProjects.has(index)) return;
+        if (monitorEditContext && monitorEditContext.isEditing && monitorEditContext.projectIndex === index) return;
+        const intervalSec = Number(schedule.intervalSec);
+        if (!Number.isFinite(intervalSec) || intervalSec <= 0) return;
+        const intervalMs = Math.max(intervalSec, 30) * 1000;
+        const state = monitor.state || {};
+        const lastRunAt = state.lastRunAt ? Date.parse(state.lastRunAt) : null;
+        const due = !lastRunAt || Number.isNaN(lastRunAt) || (now - lastRunAt) >= intervalMs;
+        if (!due) return;
+        runProjectChecks(index, { mode: 'schedule', source: 'schedule' }).catch((error) => {
+            console.error('Scheduled monitor run failed:', error);
+        });
+    });
+}
 
+function startMonitorScheduler() {
+    if (monitorScheduleTimerId !== null) {
+        return;
+    }
+    monitorScheduleTimerId = window.setInterval(runScheduledMonitorCycle, MONITOR_SCHEDULE_POLL_INTERVAL_MS);
+    runScheduledMonitorCycle();
+}
 
-
-
-
+function stopMonitorScheduler() {
+    if (monitorScheduleTimerId !== null) {
+        window.clearInterval(monitorScheduleTimerId);
+        monitorScheduleTimerId = null;
+    }
+}
 
 const MONITOR_CREATION_METHODS = new Set(['POST']);
 
@@ -1365,7 +1402,6 @@ function getMonitorModalElements() {
         modal,
         tabsContainer: document.getElementById('monitor-tabs'),
         header: document.getElementById('monitor-edit-header'),
-        saveButton: document.getElementById('monitor-save-button'),
         cancelButton: document.getElementById('monitor-cancel-button'),
         deleteButton: document.getElementById('monitor-delete-button'),
         legacySaveButton: document.getElementById('edit-form-save-button'),
@@ -1378,12 +1414,15 @@ function getMonitorModalElements() {
 }
 
 function updateMonitorActionButtons() {
-    const { saveButton, cancelButton } = getMonitorModalElements();
-    if (!saveButton || !cancelButton) return;
-    const shouldDisableSave = !monitorEditContext.isEditing || !monitorEditContext.dirty || monitorEditContext.hasValidationErrors;
-    saveButton.hidden = false;
+    const { cancelButton } = getMonitorModalElements();
+    if (!cancelButton) return;
+    // כפתור Cancel תמיד גלוי!
     cancelButton.hidden = false;
-    saveButton.disabled = shouldDisableSave;
+    cancelButton.disabled = false;
+}
+
+function monitorEditModeActive() {
+    return Boolean(monitorEditContext && monitorEditContext.isEditing);
 }
 
 function setLegacySaveDisabled(isDisabled) {
@@ -1486,6 +1525,7 @@ function headersObjectToText(headers) {
 
 function prepareMonitorTestsForEdit(monitor) {
     const tests = Array.isArray(monitor?.tests) ? monitor.tests : [];
+    console.log('prepareMonitorTestsForEdit - tests from monitor:', tests);
     return tests.map((test) => {
         const methodSource = normalizeMonitorString(test?.method) || 'GET';
         return {
@@ -1504,19 +1544,92 @@ function prepareMonitorTestsForEdit(monitor) {
 
 function renderMonitorTestsEditor() {
     const { testsEditor, testsList, testsEmpty, testsControls } = getMonitorModalElements();
-    if (!testsEditor || !testsList || !testsEmpty || !testsControls) return;
+    if (!testsEditor || !testsList || !testsEmpty || !testsControls) {
+        console.error('renderMonitorTestsEditor - Missing elements!', { testsEditor, testsList, testsEmpty, testsControls });
+        return;
+    }
+    
+    console.log('renderMonitorTestsEditor - tests count:', monitorEditContext.tests.length);
+    console.log('renderMonitorTestsEditor - tests:', monitorEditContext.tests);
+    
     testsEditor.innerHTML = '';
     if (monitorEditContext.tests.length === 0) {
         testsEmpty.hidden = false;
+        console.log('renderMonitorTestsEditor - No tests, showing empty state');
     } else {
         testsEmpty.hidden = true;
+        console.log('renderMonitorTestsEditor - Rendering', monitorEditContext.tests.length, 'tests');
         monitorEditContext.tests.forEach((test, index) => {
-            testsEditor.appendChild(createTestEditorCard(test, index));
+            console.log('renderMonitorTestsEditor - Creating card for test', index, test);
+            const card = createTestEditorCard(test, index);
+            console.log('renderMonitorTestsEditor - Created card:', card);
+            testsEditor.appendChild(card);
         });
     }
     testsEditor.hidden = false;
     testsControls.hidden = false;
     testsList.hidden = true;
+    
+    // עדכון הבאדג'
+    updateTestsBadge(monitorEditContext.tests.length);
+    
+    console.log('renderMonitorTestsEditor - Final state:', {
+        testsEditorHidden: testsEditor.hidden,
+        testsEmptyHidden: testsEmpty.hidden,
+        testsListHidden: testsList.hidden,
+        testsControlsHidden: testsControls.hidden,
+        editorChildCount: testsEditor.children.length
+    });
+}
+
+function updateTestsBadge(count) {
+    const badge = document.getElementById('monitor-tab-tests-badge');
+    if (badge) {
+        badge.textContent = String(count);
+        badge.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
+}
+
+function updateAuthStatus() {
+    const statusEl = document.getElementById('monitor-tab-auth-status');
+    if (!statusEl) return;
+    
+    const baseUrl = document.getElementById('monitor-base-url')?.value?.trim();
+    const loginEnabled = document.getElementById('monitor-login-enabled')?.checked;
+    const username = document.getElementById('monitor-login-username')?.value?.trim();
+    const password = document.getElementById('monitor-login-password')?.value?.trim();
+    
+    if (!baseUrl) {
+        statusEl.textContent = '✗';
+        statusEl.style.color = '#ff4f62';
+        statusEl.title = 'Base URL is required';
+    } else if (loginEnabled && (!username || !password)) {
+        statusEl.textContent = '⚠';
+        statusEl.style.color = '#f5a623';
+        statusEl.title = 'Login enabled but credentials incomplete';
+    } else {
+        statusEl.textContent = '✓';
+        statusEl.style.color = '#25c06d';
+        statusEl.title = 'API configuration complete';
+    }
+}
+
+function updateScheduleStatus() {
+    const statusEl = document.getElementById('monitor-tab-schedule-status');
+    if (!statusEl) return;
+    
+    const scheduleEnabled = document.getElementById('monitor-schedule-enabled')?.checked;
+    const interval = document.getElementById('monitor-schedule-interval')?.value;
+    
+    if (scheduleEnabled && interval) {
+        statusEl.textContent = '✓';
+        statusEl.style.color = '#25c06d';
+        statusEl.title = `Schedule active: every ${interval}s`;
+    } else {
+        statusEl.textContent = '⏰';
+        statusEl.style.color = '#95a5a6';
+        statusEl.title = 'Schedule inactive';
+    }
 }
 
 function createTestEditorCard(test, index) {
@@ -1543,6 +1656,28 @@ function createTestEditorCard(test, index) {
     const actions = document.createElement('div');
     actions.className = 'monitor-test-editor__actions';
 
+    // כפתור הזזה למעלה
+    const moveUpButton = document.createElement('button');
+    moveUpButton.type = 'button';
+    moveUpButton.className = 'monitor-test-editor__action';
+    moveUpButton.textContent = '↑';
+    moveUpButton.title = 'Move Up';
+    moveUpButton.disabled = index === 0;
+    addMonitorEditListener(moveUpButton, 'click', () => {
+        handleTestMoveUp(index);
+    });
+
+    // כפתור הזזה למטה
+    const moveDownButton = document.createElement('button');
+    moveDownButton.type = 'button';
+    moveDownButton.className = 'monitor-test-editor__action';
+    moveDownButton.textContent = '↓';
+    moveDownButton.title = 'Move Down';
+    moveDownButton.disabled = index === monitorEditContext.tests.length - 1;
+    addMonitorEditListener(moveDownButton, 'click', () => {
+        handleTestMoveDown(index);
+    });
+
     const duplicateButton = document.createElement('button');
     duplicateButton.type = 'button';
     duplicateButton.className = 'monitor-test-editor__action';
@@ -1559,6 +1694,8 @@ function createTestEditorCard(test, index) {
         handleTestDelete(index);
     });
 
+    actions.appendChild(moveUpButton);
+    actions.appendChild(moveDownButton);
     actions.appendChild(duplicateButton);
     actions.appendChild(deleteButton);
 
@@ -1683,15 +1820,35 @@ function handleTestAdd() {
 }
 
 function handleTestDelete(index) {
-    monitorEditContext.tests.splice(index, 1);
-    setMonitorDirty(true);
-    renderMonitorTestsEditor();
+    if (confirm('Are you sure you want to delete this test?')) {
+        monitorEditContext.tests.splice(index, 1);
+        setMonitorDirty(true);
+        renderMonitorTestsEditor();
+    }
 }
 
 function handleTestDuplicate(index) {
     const source = monitorEditContext.tests[index];
     const clone = { ...source, id: generateTestId(), name: source.name ? `${source.name} Copy` : '' };
     monitorEditContext.tests.splice(index + 1, 0, clone);
+    setMonitorDirty(true);
+    renderMonitorTestsEditor();
+}
+
+function handleTestMoveUp(index) {
+    if (index === 0) return;
+    const temp = monitorEditContext.tests[index];
+    monitorEditContext.tests[index] = monitorEditContext.tests[index - 1];
+    monitorEditContext.tests[index - 1] = temp;
+    setMonitorDirty(true);
+    renderMonitorTestsEditor();
+}
+
+function handleTestMoveDown(index) {
+    if (index === monitorEditContext.tests.length - 1) return;
+    const temp = monitorEditContext.tests[index];
+    monitorEditContext.tests[index] = monitorEditContext.tests[index + 1];
+    monitorEditContext.tests[index + 1] = temp;
     setMonitorDirty(true);
     renderMonitorTestsEditor();
 }
@@ -1872,11 +2029,17 @@ function countMonitorDifferences(previousMonitor, nextMonitor) {
 }
 
 function enterMonitorEditMode(project) {
+    console.log('enterMonitorEditMode - project.monitor:', project.monitor);
+    console.log('enterMonitorEditMode - project.monitor.tests:', project.monitor?.tests);
+    
     monitorEditContext.isEditing = true;
     monitorEditContext.dirty = false;
     monitorEditContext.hasValidationErrors = false;
     monitorEditContext.originalMonitor = cloneMonitorData(project.monitor || createDefaultMonitor());
     monitorEditContext.tests = prepareMonitorTestsForEdit(project.monitor || {});
+    
+    console.log('enterMonitorEditMode - monitorEditContext.tests:', monitorEditContext.tests);
+    
     clearMonitorValidation();
     removeMonitorEditListeners();
     const modal = document.getElementById('edit-modal');
@@ -1884,10 +2047,28 @@ function enterMonitorEditMode(project) {
         addMonitorEditListener(modal, 'input', (event) => {
             clearFieldError(event.target);
             setMonitorDirty(true);
+            
+            // עדכון סטטוסים
+            if (event.target.id?.startsWith('monitor-base-url') || 
+                event.target.id?.startsWith('monitor-login')) {
+                updateAuthStatus();
+            }
+            if (event.target.id?.startsWith('monitor-schedule')) {
+                updateScheduleStatus();
+            }
         });
         addMonitorEditListener(modal, 'change', (event) => {
             clearFieldError(event.target);
             setMonitorDirty(true);
+            
+            // עדכון סטטוסים
+            if (event.target.id?.startsWith('monitor-base-url') || 
+                event.target.id?.startsWith('monitor-login')) {
+                updateAuthStatus();
+            }
+            if (event.target.id?.startsWith('monitor-schedule')) {
+                updateScheduleStatus();
+            }
         });
     }
     renderMonitorTestsEditor();
@@ -1895,7 +2076,14 @@ function enterMonitorEditMode(project) {
     if (testsList) testsList.hidden = true;
     if (testsEditor) testsEditor.hidden = false;
     if (testsControls) testsControls.hidden = false;
-    setLegacySaveDisabled(true);
+    
+    // כפתור Save הישן תמיד גלוי!
+    setLegacySaveDisabled(false);
+    
+    // עדכון סטטוסים ראשוני
+    updateAuthStatus();
+    updateScheduleStatus();
+    
     updateMonitorActionButtons();
     if (monitorEditContext.projectIndex !== null) {
         syncMonitorRunButtons(monitorEditContext.projectIndex);
@@ -1948,56 +2136,8 @@ function handleMonitorDelete() {
 }
 
 
-function handleMonitorSave() {
-    if (monitorEditContext.projectIndex === null) {
-        return;
-    }
-    const project = projectsData[monitorEditContext.projectIndex];
-    if (!project) {
-        return;
-    }
-    const modal = document.getElementById('edit-modal');
-    if (!modal) return;
-    const collected = collectMonitorFromForm(modal, project);
-    if (!collected) {
-        return;
-    }
-    const existingMonitor = project.monitor ? cloneMonitorData(project.monitor) : createDefaultMonitor();
-    const updatedMonitor = {
-        ...existingMonitor,
-        baseUrl: collected.baseUrl,
-        login: { ...existingMonitor.login, ...collected.login },
-        tests: collected.tests,
-        schedule: { ...existingMonitor.schedule, ...collected.schedule }
-    };
-    updatedMonitor.state = existingMonitor.state || {};
-    mergeDefaults(updatedMonitor, DEFAULT_MONITOR_TEMPLATE);
-    const baseline = monitorEditContext.originalMonitor || existingMonitor;
-    const diffCount = countMonitorDifferences(baseline, updatedMonitor);
-    project.monitor = updatedMonitor;
-    monitorEditContext.hasValidationErrors = false;
-    const historyLabel = diffCount === 1 ? 'monitor updated (1 change)' : `monitor updated (${diffCount} changes)`;
-    addToHistory('Monitor edited', historyLabel);
-    localStorage.setItem('projectsData', JSON.stringify(projectsData));
-    renderProjects(projectsData);
-    renderHotItems();
-    exitMonitorEditMode({ restoreOriginal: false });
-    populateMonitorTabs(project);
-    setMonitorDirty(false);
-    updateMonitorActionButtons();
-    setMonitorModeBadge('Saved', false);
-    window.setTimeout(() => {
-        if (!monitorEditContext.isEditing) {
-                        }
-    }, 2000);
-}
-
-
 function initializeMonitorUI() {
-    const { saveButton, cancelButton, deleteButton, addTestButton } = getMonitorModalElements();
-    if (saveButton) {
-        saveButton.addEventListener('click', handleMonitorSave);
-    }
+    const { cancelButton, deleteButton, addTestButton } = getMonitorModalElements();
     if (cancelButton) {
         cancelButton.addEventListener('click', closeEditModal);
     }
@@ -2035,7 +2175,12 @@ function populateMonitorTabs(project) {
     setMonitorTextValue('monitor-token-header', login.tokenHeaderName);
     setMonitorTextValue('monitor-token-prefix', login.tokenPrefix);
     setMonitorCheckboxValue('monitor-persist-password', login.persistPassword);
-    renderMonitorTests(Array.isArray(monitor.tests) ? monitor.tests : []);
+    
+    // כניסה אוטומטית למצב עריכה של טסטים!
+    enterMonitorEditMode(project);
+    
+    // הטאב Tests כבר הראשוני ב-HTML, לא צריך מעבר ידני
+    
     setMonitorCheckboxValue('monitor-schedule-enabled', schedule.enabled);
     setMonitorTextValue('monitor-schedule-interval', schedule.intervalSec);
 }
@@ -2241,6 +2386,7 @@ function renderProjects(projects) {
 
     });
     checkProjectStatuses();
+    runScheduledMonitorCycle();
 }
 
 function openEditModal(index) {
@@ -2262,7 +2408,6 @@ function openEditModal(index) {
 
     const {
         header: monitorHeader,
-        saveButton: monitorSaveButton,
         cancelButton: monitorCancelButton,
         deleteButton: monitorDeleteButton,
         legacySaveButton
@@ -2282,17 +2427,10 @@ function openEditModal(index) {
 
     setMonitorDirty(false);
 
-    if (monitorSaveButton) {
-        monitorSaveButton.hidden = false;
-        monitorSaveButton.disabled = true;
-    }
-
     if (monitorCancelButton) {
         monitorCancelButton.hidden = false;
         monitorCancelButton.disabled = false;
     }
-
-    updateMonitorActionButtons();
 
     if (monitorDeleteButton) {
         monitorDeleteButton.hidden = false;
@@ -2335,255 +2473,222 @@ function openEditModal(index) {
     }
     fieldsContainer.innerHTML = fieldsHTML;
 
+    // Show the modal
+    const editModal = document.getElementById('edit-modal');
+    if (editModal) {
+        editModal.style.display = 'flex';
+    }
+}
+
+// NEW FUNCTION: saveEdit() - Save all project data including Monitor configuration
+function saveEdit() {
+    if (currentProjectIndex === null || currentProjectIndex < 0 || currentProjectIndex >= projectsData.length) {
+        alert('Invalid project index.');
+        return;
+    }
+
+    const project = projectsData[currentProjectIndex];
+    const oldName = project.name;
+
+    // Get basic project fields
+    const editName = document.getElementById("edit-name");
+    if (!editName || !editName.value.trim()) {
+        alert('Project name is required.');
+        return;
+    }
+
+    project.name = editName.value.trim();
+
+    const editURL = document.getElementById("edit-url");
+    if (editURL) {
+        project.url = editURL.value.trim();
+    }
+
+    // Update custom fields
+    for (let i = 1; i <= 4; i++) {
+        const fieldNameInput = document.getElementById(`edit-field-name-${i}`);
+        const fieldValueInput = document.getElementById(`edit-field-value-${i}`);
+
+        if (fieldNameInput && fieldValueInput) {
+            project.fieldNames[i] = fieldNameInput.value.trim() || `Field ${i}`;
+            project.fields[i] = fieldValueInput.value.trim() || "";
+        }
+    }
+
+    // Collect Monitor data from form
+    const editModal = document.getElementById('edit-modal');
     if (!project.monitor) {
         project.monitor = createDefaultMonitor();
     }
-    const scheduleEnabledInput = document.getElementById("monitor-schedule-enabled");
-    const scheduleIntervalInput = document.getElementById("monitor-schedule-interval");
-    const currentSchedule = project.monitor.schedule || {};
-    if (scheduleEnabledInput) {
-        scheduleEnabledInput.checked = Boolean(currentSchedule.enabled);
-    }
-    if (scheduleIntervalInput) {
-        scheduleIntervalInput.value = currentSchedule.intervalSec ?? 3600;
+
+    if (editModal) {
+        const collectedMonitor = collectMonitorFromForm(editModal, project);
+        if (!collectedMonitor) {
+            // Validation failed - collectMonitorFromForm already showed errors
+            return;
+        }
+
+        // Merge collected monitor data with existing state
+        const existingMonitor = cloneMonitorData(project.monitor);
+        const updatedMonitor = {
+            ...existingMonitor,
+            baseUrl: collectedMonitor.baseUrl,
+            login: { ...existingMonitor.login, ...collectedMonitor.login },
+            tests: collectedMonitor.tests,
+            schedule: { ...existingMonitor.schedule, ...collectedMonitor.schedule }
+        };
+        
+        // Preserve state data
+        updatedMonitor.state = existingMonitor.state || {};
+        
+        // Ensure all defaults are present
+        mergeDefaults(updatedMonitor, DEFAULT_MONITOR_TEMPLATE);
+        
+        project.monitor = updatedMonitor;
     }
 
-    const editModal = document.getElementById("edit-modal");
-    if (editModal) {
-        editModal.style.display = "block";
+    // Validate and fix schedule interval
+    const schedule = project.monitor.schedule || {};
+    if (schedule.intervalSec !== undefined) {
+        const interval = Number(schedule.intervalSec);
+        if (!Number.isNaN(interval)) {
+            schedule.intervalSec = Math.min(Math.max(interval, 30), 3600);
+        }
     }
-    
+    project.monitor.schedule = schedule;
+
+    // Final merge to ensure consistency
+    mergeDefaults(project.monitor, DEFAULT_MONITOR_TEMPLATE);
+
+    // Restart scheduler if needed
+    runScheduledMonitorCycle();
+
+    // Persist to localStorage
+    localStorage.setItem('projectsData', JSON.stringify(projectsData));
+
+    // Add to history
+    addToHistory("עריכה", `עריכת פרויקט: ${oldName} -> ${project.name}`);
+
+    // Re-render projects
+    renderProjects(projectsData);
+    renderHotItems();
+
+    // Reset dirty flag
+    setMonitorDirty(false);
+
+    // Close modal
+    closeEditModal();
+}
+
+// Helper functions for modal management
+function closeEditModal() {
+    const editModal = document.getElementById('edit-modal');
+    if (editModal) {
+        editModal.style.display = 'none';
+    }
+    currentProjectIndex = null;
+    exitMonitorEditMode({ restoreOriginal: false, silent: true });
 }
 
 function forceCloseEditModal() {
-    monitorEditContext.dirty = false;
-    exitMonitorEditMode({ restoreOriginal: false, silent: true });
-    monitorEditContext.projectIndex = null;
-    currentProjectIndex = null;
-    const modal = document.getElementById('edit-modal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
-    const monitorTabsContainer = document.getElementById('monitor-tabs');
-    if (monitorTabsContainer) {
-        clearMonitorTabs();
-        teardownMonitorTabs(monitorTabsContainer);
-        monitorTabsContainer.hidden = true;
-    }
-    const { deleteButton: monitorDeleteButton } = getMonitorModalElements();
-    if (monitorDeleteButton) {
-        monitorDeleteButton.hidden = true;
-        monitorDeleteButton.disabled = false;
-    }
-}
-
-function closeEditModal() {
-    if (monitorEditContext.isEditing && monitorEditContext.dirty) {
-        const discard = confirm('Discard monitor changes?');
-        if (!discard) {
-            return;
-        }
-    }
-    const wasEditing = monitorEditContext.isEditing;
-    if (monitorEditContext.projectIndex !== null && monitorRunningProjects.has(monitorEditContext.projectIndex)) {
-        const runContext = monitorRunContexts.get(monitorEditContext.projectIndex);
-        if (runContext && runContext.source === 'modal') {
-            cancelMonitorRun(monitorEditContext.projectIndex, 'modal-close');
-        }
-    }
-    if (monitorEditContext.projectIndex !== null) {
-        exitMonitorEditMode({ restoreOriginal: wasEditing });
-        monitorEditContext.projectIndex = null;
-    } else {
-        exitMonitorEditMode({ restoreOriginal: wasEditing });
-    }
-    const modal = document.getElementById("edit-modal");
-    if (modal) {
-        modal.style.display = "none";
-    }
-    currentProjectIndex = null;
-    const monitorTabsContainer = document.getElementById('monitor-tabs');
-    if (monitorTabsContainer) {
-        clearMonitorTabs();
-        teardownMonitorTabs(monitorTabsContainer);
-        monitorTabsContainer.hidden = true;
-    }
-    const { deleteButton: monitorDeleteButton } = getMonitorModalElements();
-    if (monitorDeleteButton) {
-        monitorDeleteButton.hidden = true;
-        monitorDeleteButton.disabled = false;
-    }
+    closeEditModal();
 }
 
 function openAddModal() {
+    const addModal = document.getElementById('add-modal');
+    if (!addModal) return;
 
-    const nameInput = document.getElementById("add-name");
-    if (nameInput) {
-        nameInput.value = "";
-        nameInput.setAttribute('maxlength', '20');
-    }
-    
-    const fieldsContainer = document.getElementById("add-fields-container");
-    if (!fieldsContainer) {
-        console.error("שגיאה: לא נמצא האלמנט add-fields-container!");
-        return;
-    }
-    
-    let fieldsHTML = "";
+    // Clear previous inputs
+    const addName = document.getElementById('add-name');
+    if (addName) addName.value = '';
+
+    const addURL = document.getElementById('add-url');
+    if (addURL) addURL.value = '';
+
     for (let i = 1; i <= 4; i++) {
-        fieldsHTML += `
-            <label for="add-field-name-${i}">שם שדה ${i}:</label>
-            <input type="text" id="add-field-name-${i}" value="שדה ${i}" maxlength="15">
+        const fieldNameInput = document.getElementById(`add-field-name-${i}`);
+        const fieldValueInput = document.getElementById(`add-field-value-${i}`);
+        if (fieldNameInput) fieldNameInput.value = '';
+        if (fieldValueInput) fieldValueInput.value = '';
+    }
 
-            <label for="add-field-value-${i}">ערך שדה ${i}:</label>
-            <input type="text" id="add-field-value-${i}" maxlength="20">
-        `;
+    // Generate field inputs if container exists
+    const addFieldsContainer = document.getElementById('add-fields-container');
+    if (addFieldsContainer) {
+        let fieldsHTML = '';
+        for (let i = 1; i <= 4; i++) {
+            fieldsHTML += `
+                <label for="add-field-name-${i}">שם שדה ${i}:</label>
+                <input type="text" id="add-field-name-${i}" maxlength="15">
+                <label for="add-field-value-${i}">ערך שדה ${i}:</label>
+                <input type="text" id="add-field-value-${i}" maxlength="20">
+            `;
+        }
+        addFieldsContainer.innerHTML = fieldsHTML;
     }
-    
-    fieldsContainer.innerHTML = fieldsHTML;
-    
-    const addModal = document.getElementById("add-modal");
-    if (addModal) {
-        addModal.style.display = "block";
-    }
+
+    addModal.style.display = 'flex';
 }
 
 function closeAddModal() {
-    const modal = document.getElementById("add-modal");
-    if (modal) {
-        modal.style.display = "none";
+    const addModal = document.getElementById('add-modal');
+    if (addModal) {
+        addModal.style.display = 'none';
     }
 }
 
 function openHistoryModal() {
-    const historyContainer = document.getElementById("history-container");
-    if (!historyContainer) {
-        console.error("שגיאה: לא נמצא האלמנט history-container!");
-        return;
-    }
-    
-    if (projectHistory.length === 0) {
-        historyContainer.innerHTML = "<p>אין היסטוריית שינויים זמינה.</p>";
-    } else {
-        let historyHTML = "";
-        
+    const historyModal = document.getElementById('history-modal');
+    const historyContainer = document.getElementById('history-container');
 
-        for (let i = projectHistory.length - 1; i >= 0; i--) {
-            const item = projectHistory[i];
-            let typeClass = '';
-            
-            if (item.type.includes('עריכה')) typeClass = 'history-edit';
-            else if (item.type.includes('הוספה')) typeClass = 'history-add';
-            else if (item.type.includes('מחיקה')) typeClass = 'history-delete';
-            
+    if (!historyModal || !historyContainer) return;
+
+    // Clear previous content
+    historyContainer.innerHTML = '';
+
+    if (!projectHistory || projectHistory.length === 0) {
+        historyContainer.innerHTML = '<p style="text-align: center; color: gray;">אין היסטוריה להצגה.</p>';
+    } else {
+        let historyHTML = '<ul class="history-list">';
+        projectHistory.slice().reverse().forEach(item => {
+            const escapedDate = escapeHTML(item.date);
+            const escapedType = escapeHTML(item.type);
+            const escapedDesc = escapeHTML(item.description);
             historyHTML += `
-                <div class="history-item">
-                    <span class="history-date">${escapeHTML(item.date)}</span>
-                    <span class="history-type ${typeClass}">${escapeHTML(item.type)}</span>
-                    <p>${escapeHTML(item.description)}</p>
-                </div>
+                <li class="history-item">
+                    <strong>${escapedDate}</strong> - 
+                    <span class="history-type">${escapedType}</span>: 
+                    ${escapedDesc}
+                </li>
             `;
-        }
-        
+        });
+        historyHTML += '</ul>';
         historyContainer.innerHTML = historyHTML;
     }
-    
-    const historyModal = document.getElementById("history-modal");
-    if (historyModal) {
-        historyModal.style.display = "block";
-    }
+
+    historyModal.style.display = 'flex';
 }
 
 function closeHistoryModal() {
-    const modal = document.getElementById("history-modal");
-    if (modal) {
-        modal.style.display = "none";
+    const historyModal = document.getElementById('history-modal');
+    if (historyModal) {
+        historyModal.style.display = 'none';
     }
 }
 
 function downloadUpdatedJSON() {
-    if (projectsData.length === 0) {
-        alert("אין נתונים להורדה!");
-        return;
-    }
+    const dataStr = JSON.stringify(projectsData, null, 4);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'projects.json';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectsData, null, 4));
-    const downloadAnchorNode = document.createElement("a");
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "projects.json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    document.body.removeChild(downloadAnchorNode);
-    
-
-    addToHistory("הורדת קובץ", "הורדת נתוני הפרויקטים כקובץ JSON");
-}
-
-function saveEdit() {
-    if (currentProjectIndex !== null) {
-        const project = projectsData[currentProjectIndex];
-        const oldName = project.name;
-        
-        const nameInput = document.getElementById("edit-name");
-        if (nameInput) {
-
-            project.name = nameInput.value.trim();
-        }
-
-        const urlInput = document.getElementById("edit-url");
-        if (urlInput) {
-            project.url = urlInput.value.trim();
-        }
-
-        if (!project.fieldNames) project.fieldNames = {};
-        if (!project.fields) project.fields = {};
-
-        for (let i = 1; i <= 4; i++) {
-            const fieldNameInput = document.getElementById(`edit-field-name-${i}`);
-            const fieldValueInput = document.getElementById(`edit-field-value-${i}`);
-
-            if (fieldNameInput && fieldValueInput) {
-                project.fieldNames[i] = fieldNameInput.value.trim() || `שדה ${i}`;
-                project.fields[i] = fieldValueInput.value.trim() || "לא זמין";
-            }
-        }
-
-        if (!project.monitor) {
-            project.monitor = createDefaultMonitor();
-        }
-        const scheduleEnabledInput = document.getElementById("monitor-schedule-enabled");
-        const scheduleIntervalInput = document.getElementById("monitor-schedule-interval");
-        const schedule = project.monitor.schedule || {};
-
-        if (scheduleEnabledInput) {
-            schedule.enabled = Boolean(scheduleEnabledInput.checked);
-        }
-
-        if (scheduleIntervalInput) {
-            const rawInterval = scheduleIntervalInput.value;
-            if (rawInterval !== "") {
-                const parsedInterval = Number(rawInterval);
-                if (!Number.isNaN(parsedInterval)) {
-                    const clampedInterval = Math.min(Math.max(parsedInterval, 30), 3600);
-                    schedule.intervalSec = clampedInterval;
-                }
-            }
-        }
-
-        project.monitor.schedule = schedule;
-        mergeDefaults(project.monitor, DEFAULT_MONITOR_TEMPLATE);
-
-        // Persist projects data in localStorage
-        localStorage.setItem('projectsData', JSON.stringify(projectsData));
-
-
-        addToHistory("עריכה", `עריכת פרויקט: ${oldName} -> ${project.name}`);
-
-        renderProjects(projectsData);
-        renderHotItems();
-
-        closeEditModal();
-    }
+    addToHistory('Export', 'Projects exported to JSON file');
 }
 
 function saveNewProject() {
@@ -2729,6 +2834,7 @@ function addTextLengthLimit() {
 window.addEventListener('load', () => {
     localStorage.removeItem('enableMonitorUI');
     initializeMonitorUI();
+    startMonitorScheduler();
 
 
     const savedDarkMode = localStorage.getItem('darkMode');
@@ -2785,6 +2891,10 @@ window.addEventListener('load', () => {
             });
     }
 	addTextLengthLimit();
+});
+
+window.addEventListener('beforeunload', () => {
+    stopMonitorScheduler();
 });
 
 function checkProjectStatuses() {

@@ -72,11 +72,11 @@ header {
 
 /* ============== הקטנת גובה הקלפים עוד יותר ============== */
 
-/* אם צריך שהתאים יהיו צרים עוד יותר אפשר גם להוריד ל-250px במקום 300px */
+/* כרטיסים רחבים יותר (wide format) - 6 בשורה */
 .grid-container {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
     margin-top: 0.2cm;
 }
 
@@ -85,11 +85,21 @@ header {
     background-color: var(--card-bg);
     color: var(--text-color);
     border: 2.5px solid #ccc;
-    border-radius: 5px;
-    padding: 10px; /* היה 20px; עכשיו רק 10px */
+    border-radius: 8px;
+    padding: 12px 16px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s;
-    position: relative; /* דרוש כדי שהנורה תישב בפינה */
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 160px;
+    max-height: 230px;
+}
+
+body.dark .card {
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 .card.card--interactive {
     cursor: pointer;
@@ -97,8 +107,9 @@ header {
 }
 
 .card.card--interactive:hover {
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
-    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    transform: translateY(-4px);
+    border-color: var(--header-bg);
 }
 
 .card.card--interactive:focus-visible {
@@ -106,26 +117,43 @@ header {
     outline-offset: 4px;
 }
 
+body.dark .card.card--interactive:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+    border-color: #6f86ff;
+}
+
 
 
 .card:hover {
-    transform: scale(1.05);
+    /* Removed duplicate transform that was conflicting with card--interactive */
+}
+
+/* Card Content Container */
+.card-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 /* כותרת גוף הכרטיס עם עוד פחות פדינג */
 /* הגבלת גובה הכרטיס כדי למנוע התרחבות לא רצויה */
 .card-body {
-    padding: 5px;
+    padding: 6px 8px;
     text-align: center;
     max-width: 100%;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
 }
 
 /* כותרת קצת יותר קטנה */
 .card-title {
-    font-size: 1.2em; /* היה 1.3em */
-    margin: 5px 0;   /* היה 10px 0 */
+    font-size: 1.1em;
+    margin: 2px 0;
     color: var(--text-color);
+    font-weight: 600;
 }
 
 /* טקסט יותר קטן ופחות מרווח */
@@ -135,9 +163,10 @@ header {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
-    margin: 3px 0;
-    font-size: 0.9em;
+    margin: 2px 0;
+    font-size: 0.82em;
     color: var(--text-color);
+    line-height: 1.2;
 }
 
 /* Footer */
@@ -202,18 +231,82 @@ footer p {
     width: 100%;
     height: 100%;
     overflow: auto;
-    background-color: rgba(89, 48, 253, 0.076);
+    background-color: rgba(0, 0, 0, 0.7);
+    animation: modalFadeIn 0.3s ease;
+    backdrop-filter: blur(4px);
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 .modal-content {
-    background-color: white;
+    background-color: #ffffff;
     color: #002f61;
-    margin: 10% auto;
+    margin: 5% auto;
     padding: 20px;
     border-radius: 13px;
-    width: 100%;
-    max-width: 500px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 85vh;
+    overflow-y: auto;
     position: relative;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease;
+    opacity: 1;
+}
+
+body.dark .modal-content {
+    background-color: #2e2e2e;
+    color: #f4f4f4;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* Custom scrollbar for modal */
+.modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: var(--header-bg);
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+    background: #0056b3;
+}
+
+body.dark .modal-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+body.dark .modal-content::-webkit-scrollbar-thumb {
+    background: #6f86ff;
+}
+
+body.dark .modal-content::-webkit-scrollbar-thumb:hover {
+    background: #8fa3ff;
 }
 .modal-actions {
     display: flex;
@@ -295,24 +388,76 @@ body.dark .modal-danger-button {
 .close-button {
     position: absolute;
     top: 10px;
-    right: 20px;
+    left: 20px;
     font-size: 2em;
     cursor: pointer;
     color: rgba(198, 79, 79, 0.465);
+    transition: color 0.3s ease;
+    z-index: 10;
+}
+
+.close-button:hover {
+    color: rgba(198, 79, 79, 0.8);
+}
+
+/* Modal Header */
+.modal-content h2 {
+    margin: 0 0 20px 0;
+    padding-right: 40px;
+    font-size: 1.5rem;
+    color: var(--header-bg);
+    border-bottom: 2px solid var(--header-bg);
+    padding-bottom: 10px;
+}
+
+body.dark .modal-content h2 {
+    color: #6f86ff;
+    border-bottom-color: #6f86ff;
 }
 
 /* Inputs and Textareas */
 label {
     display: block;
     margin: 10px 0 5px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #002f61;
+}
+
+body.dark label {
+    color: #f4f4f4;
 }
 
 input, textarea {
-    width: 96%;
-    padding: 8px;
-    margin-bottom: 20px;
+    width: 100%;
+    padding: 8px 12px;
+    margin-bottom: 15px;
     border: 1px solid #ddd;
     border-radius: 5px;
+    box-sizing: border-box;
+    font-size: 0.95rem;
+    transition: border-color 0.3s ease;
+    background-color: #ffffff;
+    color: #333;
+}
+
+input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--header-bg);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+body.dark input,
+body.dark textarea {
+    background-color: #3e3e3e;
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #f4f4f4;
+}
+
+body.dark input:focus,
+body.dark textarea:focus {
+    border-color: #6f86ff;
+    box-shadow: 0 0 0 2px rgba(111, 134, 255, 0.2);
 }
 
 /* Edit Button */
@@ -503,7 +648,7 @@ button:not .upload-button {
 /* התאמה למסכים קטנים */
 @media (max-width: 768px) {
     .grid-container {
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     }
     
     .action-buttons {
@@ -516,6 +661,53 @@ button:not .upload-button {
     
     .ticker {
         font-size: 1.5em;
+    }
+    
+    .modal-content {
+        width: 95%;
+        margin: 2% auto;
+        max-height: 95vh;
+        padding: 15px;
+    }
+    
+    .close-button {
+        font-size: 1.5em;
+        top: 5px;
+        left: 10px;
+    }
+    
+    .modal-actions {
+        flex-direction: column;
+    }
+    
+    .modal-actions button {
+        width: 100%;
+    }
+}
+
+/* Form styling improvements */
+.monitor-basic-fields {
+    margin-bottom: 20px;
+}
+
+.modal-content form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#edit-fields-container,
+#add-fields-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+@media (min-width: 768px) {
+    #edit-fields-container,
+    #add-fields-container {
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
@@ -560,24 +752,30 @@ body.connection-lost {
   50% { opacity: 0.6; }
 }
 .card .card-status-bar {
-    margin-top: 12px;
+    margin-top: 6px;
+    padding: 6px 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 8px;
-    font-size: 0.82rem;
+    gap: 6px;
+    font-size: 0.75rem;
     color: rgba(0, 0, 0, 0.7);
+    background-color: rgba(0, 123, 255, 0.05);
+    border-radius: 5px;
+    border: 1px solid rgba(0, 123, 255, 0.1);
 }
 
 body.dark .card .card-status-bar {
     color: rgba(255, 255, 255, 0.75);
+    background-color: rgba(111, 134, 255, 0.1);
+    border-color: rgba(111, 134, 255, 0.2);
 }
 
 .card .card-status-bar .status-indicator {
     position: static;
     margin: 0;
-    width: 14px;
-    height: 14px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background-color: #ffffff;
     border: 1.5px solid #0fb9c8;
@@ -624,12 +822,14 @@ body.dark .card .card-status-bar .status-indicator {
 }
 
 .card .card-status-bar .monitor-last-run {
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     white-space: nowrap;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.8);
 }
 
 body.dark .card .card-status-bar .monitor-last-run {
-    color: rgba(255, 255, 255, 0.75);
+    color: rgba(255, 255, 255, 0.85);
 }
 .monitor-tabs {
     display: flex;
@@ -652,12 +852,48 @@ body.dark .card .card-status-bar .monitor-last-run {
     cursor: pointer;
     font-weight: 600;
     transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.monitor-tab-label {
+    flex: 1;
+}
+
+.monitor-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    background: var(--header-bg);
+    color: #ffffff;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.monitor-tab-status {
+    font-size: 0.9rem;
+    opacity: 0.7;
+    transition: color 0.3s ease, opacity 0.3s ease;
+}
+
+.monitor-tab.is-active .monitor-tab-status {
+    opacity: 1;
 }
 
 .monitor-tab.is-active {
     background: var(--header-bg);
     color: #ffffff;
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.monitor-tab.is-active .monitor-tab-badge {
+    background: #ffffff;
+    color: var(--header-bg);
 }
 
 .monitor-tab:focus-visible {
@@ -670,9 +906,19 @@ body.dark .monitor-tab {
     color: #d6e4ff;
 }
 
+body.dark .monitor-tab-badge {
+    background: #6f86ff;
+    color: #0b1337;
+}
+
 body.dark .monitor-tab.is-active {
     background: #6f86ff;
     color: #0b1337;
+}
+
+body.dark .monitor-tab.is-active .monitor-tab-badge {
+    background: #0b1337;
+    color: #6f86ff;
 }
 
 body.dark .monitor-tab:focus-visible {
@@ -851,6 +1097,19 @@ body.dark .monitor-test-editor__name {
     padding: 6px 10px;
     font-size: 0.85rem;
     cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.monitor-test-editor__action:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: rgba(0, 0, 0, 0.2);
+    color: rgba(0, 0, 0, 0.4);
+}
+
+body.dark .monitor-test-editor__action:disabled {
+    border-color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.4);
 }
 
 body.dark .monitor-test-editor__action {
