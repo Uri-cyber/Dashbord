@@ -1,2 +1,0 @@
-﻿Add project: “Add Project” → set Name (required), optional URL, and up to 4 label/value pairs.
-- Edit/Delete: Use the b

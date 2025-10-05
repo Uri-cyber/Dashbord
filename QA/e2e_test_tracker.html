@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E2E Test Tracker - Board Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+
+        .stat-card.total .stat-value { color: #667eea; }
+        .stat-card.passed .stat-value { color: #10b981; }
+        .stat-card.failed .stat-value { color: #ef4444; }
+        .stat-card.blocked .stat-value { color: #f59e0b; }
+        .stat-card.pending .stat-value { color: #6b7280; }
+
+        .controls {
+            padding: 20px 30px;
+            background: white;
+            border-bottom: 2px solid #e5e7eb;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+        }
+
+        select, input {
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            padding: 0 30px 30px 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        thead {
+            background: #f8f9fa;
+            position: sticky;
+            top: 0;
+        }
+
+        th {
+            padding: 15px;
+            text-align: right;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        tbody tr:hover {
+            background: #f9fafb;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-passed { background: #d1fae5; color: #065f46; }
+        .status-failed { background: #fee2e2; color: #991b1b; }
+        .status-blocked { background: #fef3c7; color: #92400e; }
+        .status-pending { background: #e5e7eb; color: #374151; }
+
+        .priority-critical { color: #dc2626; font-weight: bold; }
+        .priority-high { color: #f59e0b; font-weight: bold; }
+        .priority-medium { color: #3b82f6; }
+        .priority-low { color: #6b7280; }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .action-btn.edit {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .action-btn.delete {
+            background: #ef4444;
+            color: white;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e5e7eb;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            transition: width 0.3s;
+        }
+
+        @media print {
+            .controls, .action-buttons {
+                display: none;
+            }
+            body {
+                background: white;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 E2E Test Tracker</h1>
+            <p>Board Dashboard - Manual Testing</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card total">
+                <div class="stat-value" id="stat-total">0</div>
+                <div class="stat-label">סה"כ טסטים</div>
+            </div>
+            <div class="stat-card passed">
+                <div class="stat-value" id="stat-passed">0</div>
+                <div class="stat-label">עברו</div>
+            </div>
+            <div class="stat-card failed">
+                <div class="stat-value" id="stat-failed">0</div>
+                <div class="stat-label">נכשלו</div>
+            </div>
+            <div class="stat-card blocked">
+                <div class="stat-value" id="stat-blocked">0</div>
+                <div class="stat-label">חסומים</div>
+            </div>
+            <div class="stat-card pending">
+                <div class="stat-value" id="stat-pending">0</div>
+                <div class="stat-label">ממתינים</div>
+            </div>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill" style="width: 0%">0%</div>
+        </div>
+
+        <div class="controls">
+            <div class="filter-group">
+                <select id="filter-category">
+                    <option value="">כל הקטגוריות</option>
+                    <option value="Critical">Critical</option>
+                    <option value="Negative">Negative</option>
+                    <option value="Responsive">Responsive</option>
+                    <option value="Accessibility">Accessibility</option>
+                    <option value="Security">Security</option>
+                    <option value="Performance">Performance</option>
+                </select>
+                <select id="filter-status">
+                    <option value="">כל הסטטוסים</option>
+                    <option value="Passed">עבר</option>
+                    <option value="Failed">נכשל</option>
+                    <option value="Blocked">חסום</option>
+                    <option value="Pending">ממתין</option>
+                </select>
+                <input type="text" id="search-box" placeholder="חיפוש...">
+            </div>
+            <button class="btn btn-primary" onclick="openModal()">➕ הוסף טסט</button>
+            <button class="btn btn-success" onclick="exportToCSV()">📥 ייצא CSV</button>
+            <button class="btn btn-secondary" onclick="window.print()">🖨️ הדפס</button>
+            <button class="btn btn-danger" onclick="resetAll()">🔄 איפוס</button>
+        </div>
+
+        <div class="table-container">
+            <table id="tests-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>תיאור</th>
+                        <th>קטגוריה</th>
+                        <th>עדיפות</th>
+                        <th>סטטוס</th>
+                        <th>תאריך</th>
+                        <th>מבצע</th>
+                        <th>הערות</th>
+                        <th>פעולות</th>
+                    </tr>
+                </thead>
+                <tbody id="tests-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="modal" id="test-modal">
+        <div class="modal-content">
+            <div class="modal-header">הוסף/ערוך טסט</div>
+            <form id="test-form">
+                <div class="form-group">
+                    <label>ID</label>
+                    <input type="text" id="test-id" required>
+                </div>
+                <div class="form-group">
+                    <label>תיאור</label>
+                    <input type="text" id="test-description" required>
+                </div>
+                <div class="form-group">
+                    <label>קטגוריה</label>
+                    <select id="test-category" required>
+                        <option value="Critical">Critical</option>
+                        <option value="Negative">Negative</option>
+                        <option value="Responsive">Responsive</option>
+                        <option value="Accessibility">Accessibility</option>
+                        <option value="Security">Security</option>
+                        <option value="Performance">Performance</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>עדיפות</label>
+                    <select id="test-priority" required>
+                        <option value="Critical">Critical</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>סטטוס</label>
+                    <select id="test-status" required>
+                        <option value="Pending">ממתין</option>
+                        <option value="Passed">עבר</option>
+                        <option value="Failed">נכשל</option>
+                        <option value="Blocked">חסום</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>מבצע</label>
+                    <input type="text" id="test-tester">
+                </div>
+                <div class="form-group">
+                    <label>הערות</label>
+                    <textarea id="test-notes"></textarea>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-success">💾 שמור</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">✖️ ביטול</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let tests = [];
+        let editingIndex = null;
+
+        // Initialize with default tests
+        function initDefaultTests() {
+            const defaultTests = [
+                { id: 'TC-001', description: 'טעינת דף ראשית', category: 'Critical', priority: 'Critical', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-002', description: 'העלאת קובץ JSON', category: 'Critical', priority: 'Critical', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-003', description: 'הוספת פרויקט חדש', category: 'Critical', priority: 'Critical', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-004', description: 'עריכת פרויקט קיים', category: 'Critical', priority: 'Critical', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-005', description: 'הגדרת API במערכת Monitor', category: 'Critical', priority: 'High', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-006', description: 'יצירת Tests במערכת Monitor', category: 'Critical', priority: 'High', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-007', description: 'הרצת Tests ידנית', category: 'Critical', priority: 'Critical', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-008', description: 'מערכת התזמון (Schedule)', category: 'Critical', priority: 'Medium', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-009', description: 'מחיקת פרויקט', category: 'Critical', priority: 'High', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-010', description: 'החלפת Theme', category: 'Critical', priority: 'Medium', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-011', description: 'ייצוא JSON', category: 'Critical', priority: 'High', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'TC-012', description: 'היסטוריה', category: 'Critical', priority: 'Low', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'NT-001', description: 'העלאת קובץ לא תקין', category: 'Negative', priority: 'High', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'NT-002', description: 'Validation Errors', category: 'Negative', priority: 'High', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'NT-003', description: 'Network Errors', category: 'Negative', priority: 'Critical', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'NT-004', description: 'CORS Errors', category: 'Negative', priority: 'Medium', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'RT-001', description: 'Mobile View (375px)', category: 'Responsive', priority: 'High', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'RT-002', description: 'Tablet View (768px)', category: 'Responsive', priority: 'Medium', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'RT-003', description: 'Desktop HD (1920px)', category: 'Responsive', priority: 'Low', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'AT-001', description: 'Keyboard Navigation', category: 'Accessibility', priority: 'High', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'AT-002', description: 'Screen Reader', category: 'Accessibility', priority: 'Medium', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'AT-003', description: 'Color Contrast', category: 'Accessibility', priority: 'Medium', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'ST-001', description: 'XSS Prevention', category: 'Security', priority: 'Critical', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'ST-002', description: 'Data Sanitization', category: 'Security', priority: 'High', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'PT-001', description: 'Load Time', category: 'Performance', priority: 'Medium', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] },
+                { id: 'PT-002', description: 'Large Dataset', category: 'Performance', priority: 'Medium', status: 'Pending', tester: '', notes: '', date: new Date().toISOString().split('T')[0] }
+            ];
+
+            const saved = localStorage.getItem('e2e-tests');
+            tests = saved ? JSON.parse(saved) : defaultTests;
+            saveTests();
+            renderTable();
+        }
+
+        function saveTests() {
+            localStorage.setItem('e2e-tests', JSON.stringify(tests));
+            updateStats();
+        }
+
+        function updateStats() {
+            const stats = {
+                total: tests.length,
+                passed: tests.filter(t => t.status === 'Passed').length,
+                failed: tests.filter(t => t.status === 'Failed').length,
+                blocked: tests.filter(t => t.status === 'Blocked').length,
+                pending: tests.filter(t => t.status === 'Pending').length
+            };
+
+            document.getElementById('stat-total').textContent = stats.total;
+            document.getElementById('stat-passed').textContent = stats.passed;
+            document.getElementById('stat-failed').textContent = stats.failed;
+            document.getElementById('stat-blocked').textContent = stats.blocked;
+            document.getElementById('stat-pending').textContent = stats.pending;
+
+            const executed = stats.total - stats.pending;
+            const progress = stats.total > 0 ? Math.round((executed / stats.total) * 100) : 0;
+            const progressBar = document.getElementById('progress-fill');
+            progressBar.style.width = progress + '%';
+            progressBar.textContent = progress + '%';
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tests-body');
+            const category = document.getElementById('filter-category').value;
+            const status = document.getElementById('filter-status').value;
+            const search = document.getElementById('search-box').value.toLowerCase();
+
+            let filtered = tests.filter(test => {
+                const matchCategory = !category || test.category === category;
+                const matchStatus = !status || test.status === status;
+                const matchSearch = !search || 
+                    test.id.toLowerCase().includes(search) || 
+                    test.description.toLowerCase().includes(search);
+                return matchCategory && matchStatus && matchSearch;
+            });
+
+            tbody.innerHTML = filtered.map((test, index) => `
+                <tr>
+                    <td><strong>${test.id}</strong></td>
+                    <td>${test.description}</td>
+                    <td>${test.category}</td>
+                    <td class="priority-${test.priority.toLowerCase()}">${test.priority}</td>
+                    <td><span class="status-badge status-${test.status.toLowerCase()}">${test.status}</span></td>
+                    <td>${test.date}</td>
+                    <td>${test.tester || '-'}</td>
+                    <td>${test.notes || '-'}</td>
+                    <td class="action-buttons">
+                        <button class="action-btn edit" onclick="editTest(${tests.indexOf(test)})">✏️ ערוך</button>
+                        <button class="action-btn delete" onclick="deleteTest(${tests.indexOf(test)})">🗑️ מחק</button>
+                    </td>
+                </tr>
+            `).join('');
+
+            updateStats();
+        }
+
+        function openModal() {
+            editingIndex = null;
+            document.getElementById('test-form').reset();
+            document.getElementById('test-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('test-modal').classList.remove('active');
+        }
+
+        function editTest(index) {
+            editingIndex = index;
+            const test = tests[index];
+            document.getElementById('test-id').value = test.id;
+            document.getElementById('test-description').value = test.description;
+            document.getElementById('test-category').value = test.category;
+            document.getElementById('test-priority').value = test.priority;
+            document.getElementById('test-status').value = test.status;
+            document.getElementById('test-tester').value = test.tester;
+            document.getElementById('test-notes').value = test.notes;
+            document.getElementById('test-modal').classList.add('active');
+        }
+
+        function deleteTest(index) {
+            if (confirm('האם אתה בטוח שברצונך למחוק טסט זה?')) {
+                tests.splice(index, 1);
+                saveTests();
+                renderTable();
+            }
+        }
+
+        function resetAll() {
+            if (confirm('האם אתה בטוח? פעולה זו תאפס את כל הטסטים למצב ההתחלתי!')) {
+                localStorage.removeItem('e2e-tests');
+                initDefaultTests();
+            }
+        }
+
+        function exportToCSV() {
+            const headers = ['ID', 'Description', 'Category', 'Priority', 'Status', 'Date', 'Tester', 'Notes'];
+            const rows = tests.map(t => [t.id, t.description, t.category, t.priority, t.status, t.date, t.tester, t.notes]);
+            
+            let csv = headers.join(',') + '\n';
+            csv += rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `E2E_Tests_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        document.getElementById('test-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const test = {
+                id: document.getElementById('test-id').value,
+                description: document.getElementById('test-description').value,
+                category: document.getElementById('test-category').value,
+                priority: document.getElementById('test-priority').value,
+                status: document.getElementById('test-status').value,
+                tester: document.getElementById('test-tester').value,
+                notes: document.getElementById('test-notes').value,
+                date: new Date().toISOString().split('T')[0]
+            };
+
+            if (editingIndex !== null) {
+                tests[editingIndex] = test;
+            } else {
+                tests.push(test);
+            }
+
+            saveTests();
+            renderTable();
+            closeModal();
+        });
+
+        document.getElementById('filter-category').addEventListener('change', renderTable);
+        document.getElementById('filter-status').addEventListener('change', renderTable);
+        document.getElementById('search-box').addEventListener('input', renderTable);
+
+        // Initialize
+        initDefaultTests();
+    </script>
+</body>
+</html>
