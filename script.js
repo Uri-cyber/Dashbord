@@ -555,11 +555,15 @@ function updateMonitorIndicatorsForProject(index) {
     const project = projectsData[index];
     if (!project) return;
     
+    console.log('🔄 Updating monitors for project', index, 'Status:', determineMonitorStatus(project));
+    
     // עדכון אינדיקטור הנורה הקיימת
     const cards = document.querySelectorAll('.card');
     cards.forEach((card) => {
         const cardIndex = parseInt(card.dataset.index || '-1');
         if (cardIndex === index) {
+            console.log('📍 Found card for project', index);
+            
             // מעדכנים את הנורה ליד הכותרת
             const statusIndicator = card.querySelector('.status-indicator');
             if (statusIndicator) {
@@ -575,18 +579,37 @@ function updateMonitorIndicatorsForProject(index) {
                 }
             }
             
-            // מעדכנים את שורת ה-Tests
+            // מעדכנים את שורת ה-Tests - זה החלק הקריטי!
             const testsRow = card.querySelector('.monitor-tests-status');
+            console.log('🔍 Looking for .monitor-tests-status:', testsRow);
+            
             if (testsRow) {
                 const testsStatus = determineMonitorStatus(project);
+                console.log('✅ Tests status determined:', testsStatus);
+                
                 const testsValue = testsRow.querySelector('.monitor-tests-value');
+                console.log('🎯 Tests value element:', testsValue);
+                
                 if (testsValue) {
-                    testsValue.className = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
+                    // עדכון קלאסים
+                    const newClass = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
+                    console.log('📝 Setting new class:', newClass);
+                    testsValue.className = newClass;
+                    
+                    // עדכון טקסט
+                    console.log('📝 Setting new text:', testsStatus.label);
                     testsValue.textContent = testsStatus.label;
-                    //testsValue.title = testsStatus.tooltip;
+                    
+                    // עדכון ARIA
                     testsValue.removeAttribute('title');
                     testsValue.setAttribute('aria-label', testsStatus.tooltip);
+                    
+                    console.log('✨ Tests status updated successfully!');
+                } else {
+                    console.warn('⚠️ Could not find .monitor-tests-value inside testsRow');
                 }
+            } else {
+                console.warn('⚠️ Could not find .monitor-tests-status in card');
             }
         }
     });
@@ -901,9 +924,16 @@ async function runProjectChecks(index, options = {}) {
         showMonitorToast('unknown', 'Run incomplete', 'Base URL is missing for this project.');
         return;
     }
+    console.log('🚦 Run complete! isPreview:', isPreview, 'Project:', index, 'Results:', results.length);
+    
     if (!isPreview) {
+        console.log('✅ Calling persistRunResult...');
         persistRunResult(project, index, results, context);
+        console.log('✅ persistRunResult completed!');
+    } else {
+        console.warn('⚠️ PREVIEW MODE - not persisting results!');
     }
+    
     const overall = computeOverall(results);
     const summary = summarizeMonitorResults(results);
     const overallLabel = MONITOR_RUN_STATUS_LABELS[overall] || overall;
@@ -957,6 +987,60 @@ function startMonitorScheduler() {
     monitorScheduleTimerId = window.setInterval(runScheduledMonitorCycle, MONITOR_SCHEDULE_POLL_INTERVAL_MS);
     runScheduledMonitorCycle();
 }
+
+// ============== Auto-refresh UI from localStorage ==============
+let uiRefreshTimerId = null;
+const UI_REFRESH_INTERVAL_MS = 5000; // רענן כל 5 שניות
+
+function refreshUIFromStorage() {
+    try {
+        const storedData = localStorage.getItem('projectsData');
+        if (!storedData) return;
+        
+        const parsedData = JSON.parse(storedData);
+        if (!Array.isArray(parsedData)) return;
+        
+        console.log('🔄 Refreshing UI from localStorage...');
+        
+        // עדכון כל הכרטיסים
+        parsedData.forEach((project, index) => {
+            if (index < projectsData.length) {
+                // עדכן רק את ה-state של המוניטור, לא את כל הפרוייקט
+                if (project.monitor && project.monitor.state) {
+                    if (!projectsData[index].monitor) {
+                        projectsData[index].monitor = createDefaultMonitor();
+                    }
+                    projectsData[index].monitor.state = project.monitor.state;
+                    
+                    // עדכן את הכרטיס ב-UI
+                    updateMonitorIndicatorsForProject(index);
+                }
+            }
+        });
+        
+        console.log('✅ UI refresh completed!');
+    } catch (error) {
+        console.warn('⚠️ Failed to refresh UI from storage:', error);
+    }
+}
+
+function startUIRefresh() {
+    if (uiRefreshTimerId !== null) {
+        return;
+    }
+    console.log('🚀 Starting UI auto-refresh (every 5 seconds)...');
+    uiRefreshTimerId = window.setInterval(refreshUIFromStorage, UI_REFRESH_INTERVAL_MS);
+}
+
+function stopUIRefresh() {
+    if (uiRefreshTimerId !== null) {
+        window.clearInterval(uiRefreshTimerId);
+        uiRefreshTimerId = null;
+        console.log('🛑 Stopped UI auto-refresh');
+    }
+}
+// ============== End Auto-refresh UI ==============
+
 
 function stopMonitorScheduler() {
     if (monitorScheduleTimerId !== null) {
@@ -3820,6 +3904,71 @@ function checkLocalConnectivity() {
     });
 }
 
-
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
+refreshUIFromStorage();
 setTimeout(checkLocalConnectivity, 2000);
 setInterval(checkLocalConnectivity, 60000);
