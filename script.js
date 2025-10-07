@@ -603,9 +603,26 @@ function updateMonitorIndicatorsForProject(index) {
                 if (testsValue) {
                     testsValue.className = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
                     testsValue.textContent = testsStatus.label;
-                    //testsValue.title = testsStatus.tooltip;
                     testsValue.removeAttribute('title');
                     testsValue.setAttribute('aria-label', testsStatus.tooltip);
+                }
+                
+                // עדכון זמן ריצה אחרונה
+                let lastRunTime = testsRow.querySelector('.monitor-last-run-time');
+                if (project.monitor && project.monitor.state && project.monitor.state.lastRunAt) {
+                    const formatted = formatMonitorLastRun(project.monitor.state.lastRunAt);
+                    if (lastRunTime) {
+                        lastRunTime.textContent = formatted ? `Last run: ${formatted}` : '';
+                    } else {
+                        // אם אין אלמנט, ניצור אותו
+                        lastRunTime = document.createElement('span');
+                        lastRunTime.className = 'monitor-last-run-time';
+                        lastRunTime.textContent = formatted ? `Last run: ${formatted}` : '';
+                        testsRow.appendChild(lastRunTime);
+                    }
+                } else if (lastRunTime) {
+                    // אם אין lastRunAt, נסיר את האלמנט
+                    lastRunTime.remove();
                 }
             }
         }
@@ -1475,21 +1492,37 @@ function decorateCardWithMonitorStatus(card, project, index) {
     testsRow.setAttribute('aria-label', `Tests: ${testsStatus.label}`);
     testsRow.setAttribute('aria-expanded', 'false');
     
-    const testsLabel = document.createElement('span');
-    testsLabel.className = 'monitor-tests-label';
-    testsLabel.textContent = 'Tests:';
-    
     const testsValue = document.createElement('span');
     testsValue.className = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
     testsValue.textContent = testsStatus.label;
-    // testsValue.title = testsStatus.tooltip;
     testsValue.removeAttribute('title');
     testsValue.setAttribute('aria-label', testsStatus.tooltip);
     
-    testsRow.appendChild(testsLabel);
     testsRow.appendChild(testsValue);
     
+    // הוספת זמן ריצה אחרונה
+    if (project.monitor && project.monitor.state && project.monitor.state.lastRunAt) {
+        const lastRunTime = document.createElement('span');
+        lastRunTime.className = 'monitor-last-run-time';
+        const formatted = formatMonitorLastRun(project.monitor.state.lastRunAt);
+        lastRunTime.textContent = formatted ? `Last run: ${formatted}` : '';
+        testsRow.appendChild(lastRunTime);
+    }
+    
     cardBody.appendChild(testsRow);
+    
+    // Add click handler to open modal and show tests tab
+    testsRow.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent card click
+        openEditModal(index);
+        // Wait for modal to open, then switch to Tests tab
+        setTimeout(() => {
+            const testsTab = document.getElementById('monitor-tab-tests');
+            if (testsTab) {
+                testsTab.click();
+            }
+        }, 100);
+    });
     
     // Bind tooltip functionality
     bindMonitorTestsTooltip(testsRow, index);
@@ -1641,12 +1674,11 @@ function formatMonitorLastRun(value) {
     if (Number.isNaN(date.getTime())) {
         return '';
     }
-    return date.toLocaleString('en-US', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${day}/${month}, ${hours}:${minutes}`;
 }
 
 const monitorTabsState = new WeakMap();

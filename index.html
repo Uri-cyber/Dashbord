@@ -190,7 +190,10 @@
         
                     <div id="add-fields-container"></div>
         
-                    <button type="button" onclick="saveNewProject()">הוסף פרויקט</button>
+                    <div class="modal-actions">
+                        <button type="button" class="modal-secondary-button" onclick="closeAddModal()">Cancel</button>
+                        <button type="button" class="modal-primary-button" onclick="saveNewProject()">הוסף פרויקט</button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -227,10 +230,3 @@
     <script src="script.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
