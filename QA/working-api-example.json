@@ -1,0 +1,111 @@
+{
+  "pageTitle": "צוות בדיקות - סטטוס פרויקטים",
+  "projects": [
+    {
+      "name": "JSONPlaceholder Test",
+      "url": "https://jsonplaceholder.typicode.com",
+      "fieldNames": {
+        "1": "מטרה",
+        "2": "API Type",
+        "3": "Auth",
+        "4": "Status"
+      },
+      "fields": {
+        "1": "בדיקת API ללא Token",
+        "2": "REST API",
+        "3": "No Auth",
+        "4": "Testing"
+      },
+      "monitor": {
+        "baseUrl": "https://jsonplaceholder.typicode.com",
+        "login": {
+          "enabled": false,
+          "path": "/auth/login",
+          "method": "POST",
+          "username": "",
+          "password": "",
+          "bodyTemplate": "",
+          "tokenLocation": "json:token",
+          "tokenHeaderName": "Authorization",
+          "tokenPrefix": "Bearer ",
+          "persistPassword": false
+        },
+        "tests": [
+          {
+            "id": "test-001",
+            "name": "1. GET Posts",
+            "required": true,
+            "requiresLogin": false,
+            "method": "GET",
+            "path": "/posts",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          },
+          {
+            "id": "test-002",
+            "name": "2. GET Single Post",
+            "required": true,
+            "requiresLogin": false,
+            "method": "GET",
+            "path": "/posts/1",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          },
+          {
+            "id": "test-003",
+            "name": "3. CREATE Post",
+            "required": true,
+            "requiresLogin": false,
+            "method": "POST",
+            "path": "/posts",
+            "expectedStatus": [201],
+            "bodyTemplate": "{\"title\":\"Test Post\",\"body\":\"Test Content\",\"userId\":1}",
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          },
+          {
+            "id": "test-004",
+            "name": "4. UPDATE Post",
+            "required": true,
+            "requiresLogin": false,
+            "method": "PUT",
+            "path": "/posts/1",
+            "expectedStatus": [200],
+            "bodyTemplate": "{\"id\":1,\"title\":\"Updated\",\"body\":\"Updated Content\",\"userId\":1}",
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          },
+          {
+            "id": "test-005",
+            "name": "5. DELETE Post",
+            "required": false,
+            "requiresLogin": false,
+            "method": "DELETE",
+            "path": "/posts/1",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          }
+        ],
+        "schedule": {
+          "enabled": false,
+          "intervalSec": 300
+        },
+        "state": {
+          "lastRunAt": null,
+          "overall": "unknown",
+          "tests": {},
+          "failures": [],
+          "token": null,
+          "tokenKind": null,
+          "tokenStoredAt": null,
+          "lastCreatedId": null
+        }
+      }
+    }
+  ]
+}

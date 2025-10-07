@@ -1,0 +1,100 @@
+{
+  "pageTitle": "בדיקת Login + Token",
+  "projects": [
+    {
+      "name": "HTTPBin Auth Test",
+      "url": "https://httpbin.org",
+      "fieldNames": {
+        "1": "מטרה",
+        "2": "API Type",
+        "3": "Auth Method",
+        "4": "Status"
+      },
+      "fields": {
+        "1": "בדיקת Login + Token",
+        "2": "REST API",
+        "3": "Bearer Token",
+        "4": "Testing"
+      },
+      "monitor": {
+        "baseUrl": "https://httpbin.org",
+        "login": {
+          "enabled": true,
+          "path": "/post",
+          "method": "POST",
+          "username": "testuser",
+          "password": "testpass",
+          "bodyTemplate": "{\"username\":\"${username}\",\"password\":\"${password}\"}",
+          "tokenLocation": "json:json.username",
+          "tokenHeaderName": "Authorization",
+          "tokenPrefix": "Bearer ",
+          "persistPassword": true
+        },
+        "tests": [
+          {
+            "id": "test-auth-001",
+            "name": "1. GET with Token",
+            "required": true,
+            "requiresLogin": true,
+            "method": "GET",
+            "path": "/get",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          },
+          {
+            "id": "test-auth-002",
+            "name": "2. POST with Token",
+            "required": true,
+            "requiresLogin": true,
+            "method": "POST",
+            "path": "/post",
+            "expectedStatus": [200],
+            "bodyTemplate": "{\"test\":\"data\",\"timestamp\":\"${timestamp}\"}",
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          },
+          {
+            "id": "test-auth-003",
+            "name": "3. PUT with Token",
+            "required": true,
+            "requiresLogin": true,
+            "method": "PUT",
+            "path": "/put",
+            "expectedStatus": [200],
+            "bodyTemplate": "{\"update\":\"test\"}",
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          },
+          {
+            "id": "test-auth-004",
+            "name": "4. DELETE with Token",
+            "required": false,
+            "requiresLogin": true,
+            "method": "DELETE",
+            "path": "/delete",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          }
+        ],
+        "schedule": {
+          "enabled": false,
+          "intervalSec": 300
+        },
+        "state": {
+          "lastRunAt": null,
+          "overall": "unknown",
+          "tests": {},
+          "failures": [],
+          "token": null,
+          "tokenKind": null,
+          "tokenStoredAt": null,
+          "lastCreatedId": null
+        }
+      }
+    }
+  ]
+}

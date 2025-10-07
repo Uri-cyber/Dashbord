@@ -28,6 +28,8 @@ const DEFAULT_MONITOR_TEMPLATE = Object.freeze({
         overall: "unknown",
         tests: {},
         failures: [],
+        token: null,
+        tokenKind: null,
         tokenStoredAt: null,
         lastCreatedId: null
     }
@@ -559,11 +561,19 @@ function persistRunResult(project, index, results, context) {
     monitor.state.failures = failures;
     monitor.state.tests = testsState;
     monitor.state.lastCreatedId = context.lastCreatedId ?? null;
+    
+    // FIX: Save the token to state so it persists between runs
     if (context.token) {
+        monitor.state.token = context.token;
+        monitor.state.tokenKind = context.tokenKind;
         monitor.state.tokenStoredAt = finishedAt;
-    } else if (!monitor.state.tokenStoredAt) {
+    } else {
+        // Clear token if no new token was obtained
+        monitor.state.token = null;
+        monitor.state.tokenKind = null;
         monitor.state.tokenStoredAt = null;
     }
+    
     try {
         localStorage.setItem('projectsData', JSON.stringify(projectsData));
     } catch (error) {
@@ -703,6 +713,14 @@ async function performLogin(project, context) {
             }
         }
     }
+    
+    // DEBUG: Log login request details
+    console.log('🔐 Login Request:', {
+        url,
+        method,
+        body: requestInit.body,
+        headers: headers instanceof Headers ? Object.fromEntries(headers.entries()) : headers
+    });
     const { response, error } = await monitorFetch(url, requestInit, context);
     if (error) {
         const loginError = { status: 'error', error };
@@ -876,6 +894,23 @@ async function runProjectChecks(index, options = {}) {
     const context = getMonitorRunContext(index);
     resetMonitorRunContext(context, options.mode || 'manual');
     context.source = options && options.source ? options.source : 'card';
+    
+    // FIX: Load existing token from state if available
+    console.log('🔍 Checking for existing token in state:', {
+        hasState: !!project.monitor.state,
+        hasToken: !!(project.monitor.state && project.monitor.state.token),
+        token: project.monitor.state?.token,
+        tokenKind: project.monitor.state?.tokenKind
+    });
+    
+    if (project.monitor.state && project.monitor.state.token) {
+        context.token = project.monitor.state.token;
+        context.tokenKind = project.monitor.state.tokenKind;
+        console.log('✅ Loaded existing token from state:', context.token);
+    } else {
+        console.log('❌ No existing token found in state');
+    }
+    
     beginMonitorRun(index, context);
     const monitor = project.monitor;
     const tests = Array.isArray(monitor.tests) ? monitor.tests : [];
