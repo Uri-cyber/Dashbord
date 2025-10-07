@@ -488,18 +488,38 @@ function computeOverall(results) {
     if (!Array.isArray(results) || results.length === 0) {
         return 'unknown';
     }
+    
+    // 1. אם יש טסט required שנפל → FAIL
     const hasRequiredFail = results.some((result) => result && result.required && result.status === 'fail');
     if (hasRequiredFail) {
         return 'fail';
     }
-    const hasAnyFail = results.some((result) => result && result.status === 'fail');
-    if (hasAnyFail) {
-        return 'partial';
-    }
+    
+    // 2. אם כל הטסטים עברו (כולל non-required) → PASS
     const allPass = results.every((result) => result && result.status === 'pass');
     if (allPass) {
         return 'pass';
     }
+    
+    // 3. אם כל ה-required עברו אבל יש non-required שנפלו → PARTIAL
+    const allRequiredPass = results
+        .filter((result) => result && result.required)
+        .every((result) => result.status === 'pass');
+    
+    const hasNonRequiredFail = results.some((result) => 
+        result && !result.required && result.status === 'fail'
+    );
+    
+    if (allRequiredPass && hasNonRequiredFail) {
+        return 'partial';  // אזהרה: יש non-required שנפלו
+    }
+    
+    // 4. אם כל ה-required עברו וגם אין non-required שנפלו → PASS
+    if (allRequiredPass) {
+        return 'pass';
+    }
+    
+    // 5. אחרת → unknown
     return 'unknown';
 }
 
@@ -1030,7 +1050,7 @@ function buildMonitorTestsTooltip(project, statusInfo) {
         msg.className = 'monitor-tests-tooltip__message monitor-tests-tooltip__message--success';
         msg.textContent = `✓ All ${statusInfo.totalTests} test${statusInfo.totalTests !== 1 ? 's' : ''} passed!`;
         body.appendChild(msg);
-    } else if (statusInfo.status === 'FAIL' && statusInfo.failedTests.length > 0) {
+    } else if ((statusInfo.status === 'FAIL' || statusInfo.status === 'PARTIAL') && statusInfo.failedTests.length > 0) {
         const summary = document.createElement('div');
         summary.className = 'monitor-tests-tooltip__summary';
         summary.textContent = `${statusInfo.passedTests}/${statusInfo.totalTests} passed, ${statusInfo.failedTests.length} failed`;
@@ -1405,16 +1425,26 @@ function determineMonitorStatus(project) {
     result.passedTests = passed;
     result.failedTests = failures;
 
-    // PASS: כל הבדיקות עברו
-    if (passed === tests.length) {
+    // ✅ FIX: השתמש ב-overall מה-state במקום לחשב מחדש!
+    const overall = state.overall || 'unknown';
+    
+    if (overall === 'pass') {
         result.status = 'PASS';
         result.label = 'PASSED';
         result.tooltip = `All ${tests.length} test${tests.length > 1 ? 's' : ''} passed`;
         return result;
     }
-
-    // FAIL: יש כשלים (partial נחשב גם כ-FAIL)
-    if (failed > 0) {
+    
+    if (overall === 'partial') {
+        result.status = 'PARTIAL';
+        result.label = 'PARTIAL';
+        const failedNames = failures.slice(0, 3).map(f => f.name).join(', ');
+        const moreCount = failures.length > 3 ? ` +${failures.length - 3} more` : '';
+        result.tooltip = `${passed} passed, ${failed} failed (non-critical): ${failedNames}${moreCount}`;
+        return result;
+    }
+    
+    if (overall === 'fail') {
         result.status = 'FAIL';
         result.label = 'FAILED';
         const failedNames = failures.slice(0, 3).map(f => f.name).join(', ');
