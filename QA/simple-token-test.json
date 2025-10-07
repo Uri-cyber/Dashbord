@@ -1,0 +1,85 @@
+{
+  "pageTitle": "בדיקת Token פשוטה",
+  "projects": [
+    {
+      "name": "Token Test - Mock",
+      "url": "https://jsonplaceholder.typicode.com",
+      "fieldNames": {
+        "1": "מטרה",
+        "2": "סוג",
+        "3": "Auth",
+        "4": "Status"
+      },
+      "fields": {
+        "1": "בדיקת Token עם Mock",
+        "2": "REST API",
+        "3": "Mock Token",
+        "4": "Testing"
+      },
+      "monitor": {
+        "baseUrl": "https://jsonplaceholder.typicode.com",
+        "login": {
+          "enabled": true,
+          "path": "/posts/1",
+          "method": "GET",
+          "username": "",
+          "password": "",
+          "bodyTemplate": "",
+          "tokenLocation": "json:id",
+          "tokenHeaderName": "X-Auth-Token",
+          "tokenPrefix": "Token-",
+          "persistPassword": false
+        },
+        "tests": [
+          {
+            "id": "test-001",
+            "name": "1. GET Posts (עם Token)",
+            "required": true,
+            "requiresLogin": true,
+            "method": "GET",
+            "path": "/posts",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          },
+          {
+            "id": "test-002",
+            "name": "2. GET Single Post (עם Token)",
+            "required": true,
+            "requiresLogin": true,
+            "method": "GET",
+            "path": "/posts/1",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          },
+          {
+            "id": "test-003",
+            "name": "3. GET Comments (עם Token)",
+            "required": true,
+            "requiresLogin": true,
+            "method": "GET",
+            "path": "/comments?postId=1",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          }
+        ],
+        "schedule": {
+          "enabled": false,
+          "intervalSec": 300
+        },
+        "state": {
+          "lastRunAt": null,
+          "overall": "unknown",
+          "tests": {},
+          "failures": [],
+          "token": null,
+          "tokenKind": null,
+          "tokenStoredAt": null,
+          "lastCreatedId": null
+        }
+      }
+    }
+  ]
+}

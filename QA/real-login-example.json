@@ -1,0 +1,96 @@
+{
+  "pageTitle": "בדיקת Login אמיתי עם Token",
+  "projects": [
+    {
+      "name": "DummyJSON - Real Auth",
+      "url": "https://dummyjson.com",
+      "fieldNames": {
+        "1": "מטרה",
+        "2": "API Type",
+        "3": "Auth Method",
+        "4": "Status"
+      },
+      "fields": {
+        "1": "בדיקת Login אמיתי עם JWT",
+        "2": "REST API",
+        "3": "JWT Bearer Token",
+        "4": "Testing"
+      },
+      "monitor": {
+        "baseUrl": "https://dummyjson.com",
+        "login": {
+          "enabled": true,
+          "path": "/auth/login",
+          "method": "POST",
+          "username": "emilys",
+          "password": "emilyspass",
+          "bodyTemplate": "{\"username\":\"${username}\",\"password\":\"${password}\",\"expiresInMins\":30}",
+          "tokenLocation": "json:accessToken",
+          "tokenHeaderName": "Authorization",
+          "tokenPrefix": "Bearer ",
+          "persistPassword": true
+        },
+        "tests": [
+          {
+            "id": "test-auth-001",
+            "name": "1. GET Current User (עם Token)",
+            "required": true,
+            "requiresLogin": true,
+            "method": "GET",
+            "path": "/auth/me",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          },
+          {
+            "id": "test-auth-002",
+            "name": "2. GET All Users (עם Token)",
+            "required": true,
+            "requiresLogin": true,
+            "method": "GET",
+            "path": "/users",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          },
+          {
+            "id": "test-auth-003",
+            "name": "3. GET Single User (עם Token)",
+            "required": true,
+            "requiresLogin": true,
+            "method": "GET",
+            "path": "/users/1",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          },
+          {
+            "id": "test-no-auth-001",
+            "name": "4. GET Products (ללא Token)",
+            "required": false,
+            "requiresLogin": false,
+            "method": "GET",
+            "path": "/products",
+            "expectedStatus": [200],
+            "bodyTemplate": "",
+            "headers": {}
+          }
+        ],
+        "schedule": {
+          "enabled": false,
+          "intervalSec": 300
+        },
+        "state": {
+          "lastRunAt": null,
+          "overall": "unknown",
+          "tests": {},
+          "failures": [],
+          "token": null,
+          "tokenKind": null,
+          "tokenStoredAt": null,
+          "lastCreatedId": null
+        }
+      }
+    }
+  ]
+}
