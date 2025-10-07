@@ -3745,7 +3745,11 @@ window.addEventListener('load', () => {
             projectsData = JSON.parse(storedProjects);
             const migrated = ensureMonitorDefaults(projectsData);
             if (migrated) {
-                localStorage.setItem('projectsData', JSON.stringify(projectsData));
+                try {
+                    localStorage.setItem('projectsData', JSON.stringify(projectsData));
+                } catch (storageError) {
+                    console.warn("Cannot save to localStorage (incognito mode?):", storageError);
+                }
             }
             renderProjects(projectsData);
             renderHotItems();
@@ -3755,23 +3759,32 @@ window.addEventListener('load', () => {
             renderProjects(projectsData);
         }
     } else {
-
+        // Try to load from projects.json, but handle failure gracefully
         fetch("projects.json")
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 projectsData = data;
                 ensureMonitorDefaults(projectsData);
-                localStorage.setItem('projectsData', JSON.stringify(projectsData));
+                try {
+                    localStorage.setItem('projectsData', JSON.stringify(projectsData));
+                } catch (storageError) {
+                    console.warn("Cannot save to localStorage (incognito mode?):", storageError);
+                }
                 renderProjects(projectsData);
                 renderHotItems();
-                
-
                 addToHistory("טעינה ראשונית", "טעינת נתונים מקובץ ברירת מחדל");
             })
             .catch(error => {
-                console.error("שגיאה בטעינת JSON:", error);
+                console.info("ℹ️ Starting with empty project list (projects.json not found - this is normal for first use or incognito mode)");
+                // Start with empty project list - this is normal in incognito mode or first use
                 projectsData = [];
                 renderProjects(projectsData);
+                renderHotItems();
             });
     }
 	addTextLengthLimit();
