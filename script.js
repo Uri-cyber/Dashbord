@@ -1,5 +1,6 @@
 // Global Variables
 let projectsData = []; // Stores all project entries
+let pageTitle = 'צוות בדיקות - סטטוס פרויקטים'; // Stores the page title
 let currentProjectIndex = null; // Tracks the project currently being edited
 let projectHistory = []; // Keeps the activity history log
 
@@ -3113,7 +3114,26 @@ function handleFileUpload(event) {
         reader.onload = function (e) {
             try {
                 const data = JSON.parse(e.target.result);
-                projectsData = data; // Update the in-memory array
+                
+                // בדיקה אם זה פורמט חדש (עם pageTitle) או ישן (רק מערך)
+                if (Array.isArray(data)) {
+                    // פורמט ישן - רק מערך של פרויקטים
+                    projectsData = data;
+                } else if (data.projects && Array.isArray(data.projects)) {
+                    // פורמט חדש - אובייקט עם pageTitle ו-projects
+                    projectsData = data.projects;
+                    if (data.pageTitle) {
+                        pageTitle = data.pageTitle;
+                        const titleElement = document.getElementById('page-title');
+                        if (titleElement) {
+                            titleElement.textContent = pageTitle;
+                        }
+                        localStorage.setItem('pageTitle', pageTitle);
+                    }
+                } else {
+                    throw new Error('Invalid JSON structure');
+                }
+                
                 ensureMonitorDefaults(projectsData);
                 // Persist to localStorage
                 localStorage.setItem('projectsData', JSON.stringify(projectsData));
@@ -3161,10 +3181,38 @@ function renderProjects(projects) {
         const truncatedName = truncateText(project.name, 20);
 
         let fieldsHTML = "";
+        let hasAnyField = false;
+        
+        // בדיקה אם יש לפחות שדה אחד עם מידע
         for (let i = 1; i <= 4; i++) {
-            const fieldName = truncateText(project.fieldNames?.[i] || `Field ${i}`, 15);
-            const fieldValue = truncateText(project.fields?.[i] || "No value", 20);
-            fieldsHTML += `<p class="card-text"><strong>${fieldName}:</strong> ${fieldValue}</p>`;
+            const fieldValue = project.fields?.[i];
+            if (fieldValue && fieldValue.trim() !== "" && fieldValue.trim().toLowerCase() !== "no value") {
+                hasAnyField = true;
+                break;
+            }
+        }
+        
+        if (!hasAnyField) {
+            // אין שום מידע - הצג הודעה במקום השורה הראשונה, ושאר השורות נסתרות
+            fieldsHTML = `<p class="card-text" style="text-align: center; color: rgba(0, 0, 0, 0.4); font-style: italic; margin: 0;">אין מידע זמין על הפרויקט</p>`;
+            // הוסף 3 שורות נסתרות נוספות כדי לשמור על גובה הכרטיס
+            for (let i = 0; i < 3; i++) {
+                fieldsHTML += `<p class="card-text" style="visibility: hidden;">&nbsp;</p>`;
+            }
+        } else {
+            // יש מידע - הצג שדות
+            for (let i = 1; i <= 4; i++) {
+                const fieldValue = project.fields?.[i];
+                // Skip if no value or "No value"
+                if (!fieldValue || fieldValue.trim() === "" || fieldValue.trim().toLowerCase() === "no value") {
+                    // Add empty placeholder to maintain card height
+                    fieldsHTML += `<p class="card-text" style="visibility: hidden;">&nbsp;</p>`;
+                    continue;
+                }
+                const fieldName = truncateText(project.fieldNames?.[i] || `Field ${i}`, 15);
+                const truncatedValue = truncateText(fieldValue, 20);
+                fieldsHTML += `<p class="card-text"><strong>${fieldName}:</strong> ${truncatedValue}</p>`;
+            }
         }
 
 
@@ -3593,7 +3641,13 @@ function closeHistoryModal() {
 }
 
 function downloadUpdatedJSON() {
-    const dataStr = JSON.stringify(projectsData, null, 4);
+    // שמירה בפורמט חדש עם pageTitle
+    const dataToSave = {
+        pageTitle: pageTitle,
+        projects: projectsData
+    };
+    
+    const dataStr = JSON.stringify(dataToSave, null, 4);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
@@ -3752,6 +3806,46 @@ window.addEventListener('load', () => {
     initializeMonitorUI();
     startMonitorScheduler();
 
+    // טעינת כותרת שמורה
+    const savedTitle = localStorage.getItem('pageTitle');
+    const titleElement = document.getElementById('page-title');
+    if (savedTitle && titleElement) {
+        titleElement.textContent = savedTitle;
+    }
+    
+    // הוספת מאזין לשמירת כותרת
+    if (titleElement) {
+        // הגבלת תווים ל-45
+        titleElement.addEventListener('input', () => {
+            const text = titleElement.textContent;
+            if (text.length > 45) {
+                titleElement.textContent = text.substring(0, 45);
+                // הזז את הסמן לסוף
+                const range = document.createRange();
+                const sel = window.getSelection();
+                range.selectNodeContents(titleElement);
+                range.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+        });
+        
+        titleElement.addEventListener('blur', () => {
+            const newTitle = titleElement.textContent.trim();
+            if (newTitle) {
+                localStorage.setItem('pageTitle', newTitle);
+                addToHistory('עדכון כותרת', `הכותרת שונתה ל: ${newTitle}`);
+            }
+        });
+        
+        // שמירה גם ב-Enter
+        titleElement.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                titleElement.blur();
+            }
+        });
+    }
 
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode === 'true') {
