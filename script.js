@@ -1,5 +1,6 @@
 // Global Variables
 let projectsData = []; // Stores all project entries
+let pageTitle = 'צוות בדיקות - סטטוס פרויקטים'; // Stores the page title
 let currentProjectIndex = null; // Tracks the project currently being edited
 let projectHistory = []; // Keeps the activity history log
 
@@ -488,18 +489,38 @@ function computeOverall(results) {
     if (!Array.isArray(results) || results.length === 0) {
         return 'unknown';
     }
+    
+    // 1. אם יש טסט required שנפל → FAIL
     const hasRequiredFail = results.some((result) => result && result.required && result.status === 'fail');
     if (hasRequiredFail) {
         return 'fail';
     }
-    const hasAnyFail = results.some((result) => result && result.status === 'fail');
-    if (hasAnyFail) {
-        return 'partial';
-    }
+    
+    // 2. אם כל הטסטים עברו (כולל non-required) → PASS
     const allPass = results.every((result) => result && result.status === 'pass');
     if (allPass) {
         return 'pass';
     }
+    
+    // 3. אם כל ה-required עברו אבל יש non-required שנפלו → PARTIAL
+    const allRequiredPass = results
+        .filter((result) => result && result.required)
+        .every((result) => result.status === 'pass');
+    
+    const hasNonRequiredFail = results.some((result) => 
+        result && !result.required && result.status === 'fail'
+    );
+    
+    if (allRequiredPass && hasNonRequiredFail) {
+        return 'partial';  // אזהרה: יש non-required שנפלו
+    }
+    
+    // 4. אם כל ה-required עברו וגם אין non-required שנפלו → PASS
+    if (allRequiredPass) {
+        return 'pass';
+    }
+    
+    // 5. אחרת → unknown
     return 'unknown';
 }
 
@@ -555,15 +576,11 @@ function updateMonitorIndicatorsForProject(index) {
     const project = projectsData[index];
     if (!project) return;
     
-    console.log('🔄 Updating monitors for project', index, 'Status:', determineMonitorStatus(project));
-    
     // עדכון אינדיקטור הנורה הקיימת
     const cards = document.querySelectorAll('.card');
     cards.forEach((card) => {
         const cardIndex = parseInt(card.dataset.index || '-1');
         if (cardIndex === index) {
-            console.log('📍 Found card for project', index);
-            
             // מעדכנים את הנורה ליד הכותרת
             const statusIndicator = card.querySelector('.status-indicator');
             if (statusIndicator) {
@@ -579,37 +596,35 @@ function updateMonitorIndicatorsForProject(index) {
                 }
             }
             
-            // מעדכנים את שורת ה-Tests - זה החלק הקריטי!
+            // מעדכנים את שורת ה-Tests
             const testsRow = card.querySelector('.monitor-tests-status');
-            console.log('🔍 Looking for .monitor-tests-status:', testsRow);
-            
             if (testsRow) {
                 const testsStatus = determineMonitorStatus(project);
-                console.log('✅ Tests status determined:', testsStatus);
-                
                 const testsValue = testsRow.querySelector('.monitor-tests-value');
-                console.log('🎯 Tests value element:', testsValue);
-                
                 if (testsValue) {
-                    // עדכון קלאסים
-                    const newClass = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
-                    console.log('📝 Setting new class:', newClass);
-                    testsValue.className = newClass;
-                    
-                    // עדכון טקסט
-                    console.log('📝 Setting new text:', testsStatus.label);
+                    testsValue.className = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
                     testsValue.textContent = testsStatus.label;
-                    
-                    // עדכון ARIA
                     testsValue.removeAttribute('title');
                     testsValue.setAttribute('aria-label', testsStatus.tooltip);
-                    
-                    console.log('✨ Tests status updated successfully!');
-                } else {
-                    console.warn('⚠️ Could not find .monitor-tests-value inside testsRow');
                 }
-            } else {
-                console.warn('⚠️ Could not find .monitor-tests-status in card');
+                
+                // עדכון זמן ריצה אחרונה
+                let lastRunTime = testsRow.querySelector('.monitor-last-run-time');
+                if (project.monitor && project.monitor.state && project.monitor.state.lastRunAt) {
+                    const formatted = formatMonitorLastRun(project.monitor.state.lastRunAt);
+                    if (lastRunTime) {
+                        lastRunTime.textContent = formatted ? `Last run: ${formatted}` : '';
+                    } else {
+                        // אם אין אלמנט, ניצור אותו
+                        lastRunTime = document.createElement('span');
+                        lastRunTime.className = 'monitor-last-run-time';
+                        lastRunTime.textContent = formatted ? `Last run: ${formatted}` : '';
+                        testsRow.appendChild(lastRunTime);
+                    }
+                } else if (lastRunTime) {
+                    // אם אין lastRunAt, נסיר את האלמנט
+                    lastRunTime.remove();
+                }
             }
         }
     });
@@ -924,16 +939,9 @@ async function runProjectChecks(index, options = {}) {
         showMonitorToast('unknown', 'Run incomplete', 'Base URL is missing for this project.');
         return;
     }
-    console.log('🚦 Run complete! isPreview:', isPreview, 'Project:', index, 'Results:', results.length);
-    
     if (!isPreview) {
-        console.log('✅ Calling persistRunResult...');
         persistRunResult(project, index, results, context);
-        console.log('✅ persistRunResult completed!');
-    } else {
-        console.warn('⚠️ PREVIEW MODE - not persisting results!');
     }
-    
     const overall = computeOverall(results);
     const summary = summarizeMonitorResults(results);
     const overallLabel = MONITOR_RUN_STATUS_LABELS[overall] || overall;
@@ -987,60 +995,6 @@ function startMonitorScheduler() {
     monitorScheduleTimerId = window.setInterval(runScheduledMonitorCycle, MONITOR_SCHEDULE_POLL_INTERVAL_MS);
     runScheduledMonitorCycle();
 }
-
-// ============== Auto-refresh UI from localStorage ==============
-let uiRefreshTimerId = null;
-const UI_REFRESH_INTERVAL_MS = 5000; // רענן כל 5 שניות
-
-function refreshUIFromStorage() {
-    try {
-        const storedData = localStorage.getItem('projectsData');
-        if (!storedData) return;
-        
-        const parsedData = JSON.parse(storedData);
-        if (!Array.isArray(parsedData)) return;
-        
-        console.log('🔄 Refreshing UI from localStorage...');
-        
-        // עדכון כל הכרטיסים
-        parsedData.forEach((project, index) => {
-            if (index < projectsData.length) {
-                // עדכן רק את ה-state של המוניטור, לא את כל הפרוייקט
-                if (project.monitor && project.monitor.state) {
-                    if (!projectsData[index].monitor) {
-                        projectsData[index].monitor = createDefaultMonitor();
-                    }
-                    projectsData[index].monitor.state = project.monitor.state;
-                    
-                    // עדכן את הכרטיס ב-UI
-                    updateMonitorIndicatorsForProject(index);
-                }
-            }
-        });
-        
-        console.log('✅ UI refresh completed!');
-    } catch (error) {
-        console.warn('⚠️ Failed to refresh UI from storage:', error);
-    }
-}
-
-function startUIRefresh() {
-    if (uiRefreshTimerId !== null) {
-        return;
-    }
-    console.log('🚀 Starting UI auto-refresh (every 5 seconds)...');
-    uiRefreshTimerId = window.setInterval(refreshUIFromStorage, UI_REFRESH_INTERVAL_MS);
-}
-
-function stopUIRefresh() {
-    if (uiRefreshTimerId !== null) {
-        window.clearInterval(uiRefreshTimerId);
-        uiRefreshTimerId = null;
-        console.log('🛑 Stopped UI auto-refresh');
-    }
-}
-// ============== End Auto-refresh UI ==============
-
 
 function stopMonitorScheduler() {
     if (monitorScheduleTimerId !== null) {
@@ -1114,7 +1068,7 @@ function buildMonitorTestsTooltip(project, statusInfo) {
         msg.className = 'monitor-tests-tooltip__message monitor-tests-tooltip__message--success';
         msg.textContent = `✓ All ${statusInfo.totalTests} test${statusInfo.totalTests !== 1 ? 's' : ''} passed!`;
         body.appendChild(msg);
-    } else if (statusInfo.status === 'FAIL' && statusInfo.failedTests.length > 0) {
+    } else if ((statusInfo.status === 'FAIL' || statusInfo.status === 'PARTIAL') && statusInfo.failedTests.length > 0) {
         const summary = document.createElement('div');
         summary.className = 'monitor-tests-tooltip__summary';
         summary.textContent = `${statusInfo.passedTests}/${statusInfo.totalTests} passed, ${statusInfo.failedTests.length} failed`;
@@ -1489,16 +1443,26 @@ function determineMonitorStatus(project) {
     result.passedTests = passed;
     result.failedTests = failures;
 
-    // PASS: כל הבדיקות עברו
-    if (passed === tests.length) {
+    // ✅ FIX: השתמש ב-overall מה-state במקום לחשב מחדש!
+    const overall = state.overall || 'unknown';
+    
+    if (overall === 'pass') {
         result.status = 'PASS';
         result.label = 'PASSED';
         result.tooltip = `All ${tests.length} test${tests.length > 1 ? 's' : ''} passed`;
         return result;
     }
-
-    // FAIL: יש כשלים (partial נחשב גם כ-FAIL)
-    if (failed > 0) {
+    
+    if (overall === 'partial') {
+        result.status = 'PARTIAL';
+        result.label = 'PARTIAL';
+        const failedNames = failures.slice(0, 3).map(f => f.name).join(', ');
+        const moreCount = failures.length > 3 ? ` +${failures.length - 3} more` : '';
+        result.tooltip = `${passed} passed, ${failed} failed (non-critical): ${failedNames}${moreCount}`;
+        return result;
+    }
+    
+    if (overall === 'fail') {
         result.status = 'FAIL';
         result.label = 'FAILED';
         const failedNames = failures.slice(0, 3).map(f => f.name).join(', ');
@@ -1529,21 +1493,37 @@ function decorateCardWithMonitorStatus(card, project, index) {
     testsRow.setAttribute('aria-label', `Tests: ${testsStatus.label}`);
     testsRow.setAttribute('aria-expanded', 'false');
     
-    const testsLabel = document.createElement('span');
-    testsLabel.className = 'monitor-tests-label';
-    testsLabel.textContent = 'Tests:';
-    
     const testsValue = document.createElement('span');
     testsValue.className = `monitor-tests-value status-${testsStatus.status.toLowerCase().replace('_', '-')}`;
     testsValue.textContent = testsStatus.label;
-    // testsValue.title = testsStatus.tooltip;
     testsValue.removeAttribute('title');
     testsValue.setAttribute('aria-label', testsStatus.tooltip);
     
-    testsRow.appendChild(testsLabel);
     testsRow.appendChild(testsValue);
     
+    // הוספת זמן ריצה אחרונה
+    if (project.monitor && project.monitor.state && project.monitor.state.lastRunAt) {
+        const lastRunTime = document.createElement('span');
+        lastRunTime.className = 'monitor-last-run-time';
+        const formatted = formatMonitorLastRun(project.monitor.state.lastRunAt);
+        lastRunTime.textContent = formatted ? `Last run: ${formatted}` : '';
+        testsRow.appendChild(lastRunTime);
+    }
+    
     cardBody.appendChild(testsRow);
+    
+    // Add click handler to open modal and show tests tab
+    testsRow.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent card click
+        openEditModal(index);
+        // Wait for modal to open, then switch to Tests tab
+        setTimeout(() => {
+            const testsTab = document.getElementById('monitor-tab-tests');
+            if (testsTab) {
+                testsTab.click();
+            }
+        }, 100);
+    });
     
     // Bind tooltip functionality
     bindMonitorTestsTooltip(testsRow, index);
@@ -1695,12 +1675,11 @@ function formatMonitorLastRun(value) {
     if (Number.isNaN(date.getTime())) {
         return '';
     }
-    return date.toLocaleString('en-US', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${day}/${month}, ${hours}:${minutes}`;
 }
 
 const monitorTabsState = new WeakMap();
@@ -3135,7 +3114,26 @@ function handleFileUpload(event) {
         reader.onload = function (e) {
             try {
                 const data = JSON.parse(e.target.result);
-                projectsData = data; // Update the in-memory array
+                
+                // בדיקה אם זה פורמט חדש (עם pageTitle) או ישן (רק מערך)
+                if (Array.isArray(data)) {
+                    // פורמט ישן - רק מערך של פרויקטים
+                    projectsData = data;
+                } else if (data.projects && Array.isArray(data.projects)) {
+                    // פורמט חדש - אובייקט עם pageTitle ו-projects
+                    projectsData = data.projects;
+                    if (data.pageTitle) {
+                        pageTitle = data.pageTitle;
+                        const titleElement = document.getElementById('page-title');
+                        if (titleElement) {
+                            titleElement.textContent = pageTitle;
+                        }
+                        localStorage.setItem('pageTitle', pageTitle);
+                    }
+                } else {
+                    throw new Error('Invalid JSON structure');
+                }
+                
                 ensureMonitorDefaults(projectsData);
                 // Persist to localStorage
                 localStorage.setItem('projectsData', JSON.stringify(projectsData));
@@ -3178,14 +3176,43 @@ function renderProjects(projects) {
     projects.forEach((project, index) => {
         const card = document.createElement("div");
         card.className = "card";
+        card.dataset.index = String(index); // FIX: Add data-index to card for updateMonitorIndicatorsForProject
 
         const truncatedName = truncateText(project.name, 20);
 
         let fieldsHTML = "";
+        let hasAnyField = false;
+        
+        // בדיקה אם יש לפחות שדה אחד עם מידע
         for (let i = 1; i <= 4; i++) {
-            const fieldName = truncateText(project.fieldNames?.[i] || `Field ${i}`, 15);
-            const fieldValue = truncateText(project.fields?.[i] || "No value", 20);
-            fieldsHTML += `<p class="card-text"><strong>${fieldName}:</strong> ${fieldValue}</p>`;
+            const fieldValue = project.fields?.[i];
+            if (fieldValue && fieldValue.trim() !== "" && fieldValue.trim().toLowerCase() !== "no value") {
+                hasAnyField = true;
+                break;
+            }
+        }
+        
+        if (!hasAnyField) {
+            // אין שום מידע - הצג הודעה במקום השורה הראשונה, ושאר השורות נסתרות
+            fieldsHTML = `<p class="card-text" style="text-align: center; color: rgba(0, 0, 0, 0.4); font-style: italic; margin: 0;">אין מידע זמין על הפרויקט</p>`;
+            // הוסף 3 שורות נסתרות נוספות כדי לשמור על גובה הכרטיס
+            for (let i = 0; i < 3; i++) {
+                fieldsHTML += `<p class="card-text" style="visibility: hidden;">&nbsp;</p>`;
+            }
+        } else {
+            // יש מידע - הצג שדות
+            for (let i = 1; i <= 4; i++) {
+                const fieldValue = project.fields?.[i];
+                // Skip if no value or "No value"
+                if (!fieldValue || fieldValue.trim() === "" || fieldValue.trim().toLowerCase() === "no value") {
+                    // Add empty placeholder to maintain card height
+                    fieldsHTML += `<p class="card-text" style="visibility: hidden;">&nbsp;</p>`;
+                    continue;
+                }
+                const fieldName = truncateText(project.fieldNames?.[i] || `Field ${i}`, 15);
+                const truncatedValue = truncateText(fieldValue, 20);
+                fieldsHTML += `<p class="card-text"><strong>${fieldName}:</strong> ${truncatedValue}</p>`;
+            }
         }
 
 
@@ -3614,7 +3641,13 @@ function closeHistoryModal() {
 }
 
 function downloadUpdatedJSON() {
-    const dataStr = JSON.stringify(projectsData, null, 4);
+    // שמירה בפורמט חדש עם pageTitle
+    const dataToSave = {
+        pageTitle: pageTitle,
+        projects: projectsData
+    };
+    
+    const dataStr = JSON.stringify(dataToSave, null, 4);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
@@ -3773,6 +3806,46 @@ window.addEventListener('load', () => {
     initializeMonitorUI();
     startMonitorScheduler();
 
+    // טעינת כותרת שמורה
+    const savedTitle = localStorage.getItem('pageTitle');
+    const titleElement = document.getElementById('page-title');
+    if (savedTitle && titleElement) {
+        titleElement.textContent = savedTitle;
+    }
+    
+    // הוספת מאזין לשמירת כותרת
+    if (titleElement) {
+        // הגבלת תווים ל-45
+        titleElement.addEventListener('input', () => {
+            const text = titleElement.textContent;
+            if (text.length > 45) {
+                titleElement.textContent = text.substring(0, 45);
+                // הזז את הסמן לסוף
+                const range = document.createRange();
+                const sel = window.getSelection();
+                range.selectNodeContents(titleElement);
+                range.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+        });
+        
+        titleElement.addEventListener('blur', () => {
+            const newTitle = titleElement.textContent.trim();
+            if (newTitle) {
+                localStorage.setItem('pageTitle', newTitle);
+                addToHistory('עדכון כותרת', `הכותרת שונתה ל: ${newTitle}`);
+            }
+        });
+        
+        // שמירה גם ב-Enter
+        titleElement.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                titleElement.blur();
+            }
+        });
+    }
 
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode === 'true') {
@@ -3798,7 +3871,11 @@ window.addEventListener('load', () => {
             projectsData = JSON.parse(storedProjects);
             const migrated = ensureMonitorDefaults(projectsData);
             if (migrated) {
-                localStorage.setItem('projectsData', JSON.stringify(projectsData));
+                try {
+                    localStorage.setItem('projectsData', JSON.stringify(projectsData));
+                } catch (storageError) {
+                    console.warn("Cannot save to localStorage (incognito mode?):", storageError);
+                }
             }
             renderProjects(projectsData);
             renderHotItems();
@@ -3808,23 +3885,32 @@ window.addEventListener('load', () => {
             renderProjects(projectsData);
         }
     } else {
-
+        // Try to load from projects.json, but handle failure gracefully
         fetch("projects.json")
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 projectsData = data;
                 ensureMonitorDefaults(projectsData);
-                localStorage.setItem('projectsData', JSON.stringify(projectsData));
+                try {
+                    localStorage.setItem('projectsData', JSON.stringify(projectsData));
+                } catch (storageError) {
+                    console.warn("Cannot save to localStorage (incognito mode?):", storageError);
+                }
                 renderProjects(projectsData);
                 renderHotItems();
-                
-
                 addToHistory("טעינה ראשונית", "טעינת נתונים מקובץ ברירת מחדל");
             })
             .catch(error => {
-                console.error("שגיאה בטעינת JSON:", error);
+                console.info("ℹ️ Starting with empty project list (projects.json not found - this is normal for first use or incognito mode)");
+                // Start with empty project list - this is normal in incognito mode or first use
                 projectsData = [];
                 renderProjects(projectsData);
+                renderHotItems();
             });
     }
 	addTextLengthLimit();
@@ -3904,71 +3990,6 @@ function checkLocalConnectivity() {
     });
 }
 
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
-refreshUIFromStorage();
+
 setTimeout(checkLocalConnectivity, 2000);
 setInterval(checkLocalConnectivity, 60000);
