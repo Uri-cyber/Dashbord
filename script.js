@@ -2715,11 +2715,13 @@ function collectMonitorFromForm(modal, project) {
     }
 
     const tokenLocationValue = tokenLocationSelect?.value ? tokenLocationSelect.value.trim() : '';
-    const tokenPattern = /^(json:[A-Za-z0-9_\.]+|header:[A-Za-z0-9\-]+)$/;
-    if (tokenLocationValue && !tokenPattern.test(tokenLocationValue)) {
-        showFieldError(tokenLocationSelect, 'Use json:path.to.token or header:Authorization.');
-        if (!firstInvalid) firstInvalid = tokenLocationSelect;
-        errors.push('login.tokenLocation');
+    if (tokenLocationValue) {
+        const tokenResult = ValidationService.validateTokenLocation(tokenLocationValue);
+        if (!tokenResult.valid) {
+            showFieldError(tokenLocationSelect, tokenResult.error);
+            if (!firstInvalid) firstInvalid = tokenLocationSelect;
+            errors.push('login.tokenLocation');
+        }
     }
 
     const scheduleEnabledCheckbox = modal.querySelector('#monitor-schedule-enabled');
@@ -2727,8 +2729,9 @@ function collectMonitorFromForm(modal, project) {
     let intervalValue = Number(scheduleIntervalInput?.value || 0);
     // Validate interval only when schedule is enabled; otherwise skip validation
     if (Boolean(scheduleEnabledCheckbox?.checked)) {
-        if (Number.isNaN(intervalValue) || intervalValue < 30 || intervalValue > 3600) {
-            showFieldError(scheduleIntervalInput, 'Interval must be 30-3600 seconds');
+        const intervalResult = ValidationService.validateInterval(intervalValue);
+        if (!intervalResult.valid) {
+            showFieldError(scheduleIntervalInput, intervalResult.error);
             if (!firstInvalid) firstInvalid = scheduleIntervalInput;
             errors.push('schedule.intervalSec');
         }
@@ -2738,51 +2741,33 @@ function collectMonitorFromForm(modal, project) {
     monitorEditContext.tests.forEach((test, index) => {
         const method = (test.method || 'GET').toUpperCase();
         const methodField = document.querySelector(`select[data-test-index="${index}"][data-field="method"]`);
-        if (!MONITOR_ALLOWED_METHODS.includes(method)) {
-            showFieldError(methodField, 'Method must be GET/POST/PUT/PATCH/DELETE');
+        const methodResult = ValidationService.validateHTTPMethod(method);
+        if (!methodResult.valid) {
+            showFieldError(methodField, methodResult.error);
             if (!firstInvalid) firstInvalid = methodField;
             errors.push(`tests[${index}].method`);
         }
 
         const expectedField = document.querySelector(`input[data-test-index="${index}"][data-field="expectedStatusRaw"]`);
-        const expectedStatus = (test.expectedStatusRaw || '').split(',').map((value) => value.trim()).filter(Boolean);
-        const expectedNumbers = [];
-        let expectedValid = true;
-        expectedStatus.forEach((value) => {
-            if (!/^\d+$/.test(value)) {
-                expectedValid = false;
-            } else {
-                expectedNumbers.push(Number(value));
-            }
-        });
-        if (!expectedValid) {
-            showFieldError(expectedField, 'Expected status must be numbers (CSV)');
+        const expectedStatusResult = ValidationService.validateStatusCodes(test.expectedStatusRaw || '');
+        let expectedNumbers = [];
+        if (!expectedStatusResult.valid) {
+            showFieldError(expectedField, expectedStatusResult.error);
             if (!firstInvalid) firstInvalid = expectedField;
             errors.push(`tests[${index}].expectedStatus`);
+        } else {
+            expectedNumbers = expectedStatusResult.sanitized;
         }
 
         const headersField = document.querySelector(`textarea[data-test-index="${index}"][data-field="headersRaw"]`);
-        const headersLines = (test.headersRaw || '').split('\n').map((line) => line.trim()).filter(Boolean);
-        const headersObject = {};
-        let headersValid = true;
-        headersLines.forEach((line) => {
-            const separatorIndex = line.indexOf(':');
-            if (separatorIndex === -1) {
-                headersValid = false;
-                return;
-            }
-            const key = line.slice(0, separatorIndex).trim();
-            const value = line.slice(separatorIndex + 1).trim();
-            if (!key) {
-                headersValid = false;
-                return;
-            }
-            headersObject[key] = value;
-        });
-        if (!headersValid) {
-            showFieldError(headersField, 'Header line must be key:value');
+        const headersResult = ValidationService.validateHeaders(test.headersRaw || '', { allowEmpty: true });
+        let headersObject = {};
+        if (!headersResult.valid) {
+            showFieldError(headersField, headersResult.error);
             if (!firstInvalid) firstInvalid = headersField;
             errors.push(`tests[${index}].headers`);
+        } else {
+            headersObject = headersResult.sanitized;
         }
 
         tests.push({
