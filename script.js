@@ -93,67 +93,20 @@
  * ==============================================================================
  */
 
-// Global Variables
-let projectsData = []; // Stores all project entries
-let pageTitle = 'צוות בדיקות - סטטוס פרויקטים'; // Stores the page title
-let currentProjectIndex = null; // Tracks the project currently being edited
-let projectHistory = []; // Keeps the activity history log
-
-const DEFAULT_MONITOR_TEMPLATE = Object.freeze({
-    baseUrl: "",
-    login: {
-        enabled: false,
-        path: "/auth/login",
-        method: "POST",
-        username: "",
-        password: "",
-        bodyTemplate: "{\"user\":\"${username}\",\"password\":\"${password}\"}",
-        tokenLocation: "json:token",
-        tokenHeaderName: "Authorization",
-        tokenPrefix: "Bearer ",
-        persistPassword: true
-    },
-    tests: [],
-    schedule: {
-        enabled: false,
-        intervalSec: INTERVALS.MAX_SCHEDULE_SEC
-    },
-    state: {
-        lastRunAt: null,
-        overall: "unknown",
-        tests: {},
-        failures: [],
-        // NOTE: Tokens NO LONGER stored in state (security fix)
-        // Tokens now managed by TokenManager (in-memory only)
-        lastCreatedId: null
-    }
-});
-
-const monitorTemplateJSON = JSON.stringify(DEFAULT_MONITOR_TEMPLATE);
-
-function createDefaultMonitor() {
-    return JSON.parse(monitorTemplateJSON);
-}
-
-const MONITOR_REQUEST_TIMEOUT_MS = TIMEOUTS.REQUEST_MS;
-const MONITOR_SCHEDULE_POLL_INTERVAL_MS = TIMEOUTS.SCHEDULE_POLL_MS;
-let monitorScheduleTimerId = null;
-const monitorRunControllers = new Map();
-const monitorRunningProjects = new Set();
-const monitorRunContexts = new Map();
-const monitorToastState = { container: null };
-const MONITOR_RUN_STATUS_LABELS = {
-    pass: 'Pass',
-    partial: 'Partial',
-    fail: 'Fail',
-    unknown: 'Unknown'
-};
-const MONITOR_TEST_STATUS_LABELS = {
-    pass: 'Pass',
-    fail: 'Fail',
-    unknown: 'Unknown'
-};
-const MONITOR_METHODS_WITH_BODY = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+// ============================================================================
+// GLOBAL STATE & CONSTANTS
+// ============================================================================
+//
+// Global variables and constants have been extracted to js/state-global.js
+//
+// This includes:
+// - projectsData, pageTitle, currentProjectIndex, projectHistory
+// - DEFAULT_MONITOR_TEMPLATE, createDefaultMonitor()
+// - Monitor runtime state (monitorRunControllers, monitorRunningProjects, etc.)
+// - Monitor constants (MONITOR_RUN_STATUS_LABELS, MONITOR_TEST_STATUS_LABELS, etc.)
+//
+// Make sure js/state-global.js is loaded before this file in index.html
+// ============================================================================
 function getMonitorRunContext(index) {
     let context = monitorRunContexts.get(index);
     if (!context) {
@@ -2291,8 +2244,7 @@ function renderMonitorTests(tests) {
 }
 
 
-
-const MONITOR_ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+// MONITOR_ALLOWED_METHODS now defined in js/state-global.js
 
 const monitorEditContext = {
     isEditing: false,

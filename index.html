@@ -217,6 +217,8 @@
     </footer>
     <!-- Configuration constants - must load before main script -->
     <script src="js/config-constants.js"></script>
+    <!-- Global state and constants - must load after config, before main script -->
+    <script src="js/state-global.js"></script>
     <!-- Secure token manager - in-memory storage only -->
     <script src="js/TokenManager.js"></script>
     <!-- Safe localStorage wrapper with error handling -->
@@ -227,6 +229,7 @@
     <script src="js/MonitorQueue.js"></script>
     <!-- Utility helper functions -->
     <script src="js/UtilityHelpers.js"></script>
+    <!-- Main application script -->
     <script src="script.js"></script>
 </body>
 </html>
