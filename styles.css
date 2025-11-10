@@ -1992,3 +1992,71 @@ body.dark .monitor-toast--unknown {
   background: #30d158 !important;  /* ירוק */
   border-color: #30d158 !important;
 }
+
+/* ============== Monitor Layout Styles (moved from inline HTML) ============== */
+/* Monitor grid layout */
+.monitor-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 768px) {
+    .monitor-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Monitor schedule grid */
+.monitor-schedule-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 768px) {
+    .monitor-schedule-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Monitor run button spans full width */
+#monitor-run-button {
+    grid-column: 1/-1;
+    width: 100%;
+}
+
+/* Monitor checkbox field styling */
+.monitor-field-group--checkbox .monitor-checkbox-line {
+    display: grid;
+    grid-template-columns: 1fr max-content;
+    align-items: center;
+    column-gap: 10px;
+    inline-size: 100%;
+    box-sizing: border-box;
+    padding: 8px 6px;
+    min-height: 40px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    background: #fff;
+    margin: 0;
+}
+
+.monitor-field-group--checkbox .monitor-checkbox-line input[type=checkbox] {
+    margin: 0;
+    grid-column: 2;
+    justify-self: end;
+    align-self: center;
+}
+
+.monitor-field-group--checkbox .monitor-checkbox-line span {
+    grid-column: 1;
+    text-align: right;
+    white-space: nowrap;
+    align-self: center;
+}
+
+body.dark .monitor-field-group--checkbox .monitor-checkbox-line {
+    background: var(--card-bg);
+    border-color: rgba(255, 255, 255, 0.25);
+}

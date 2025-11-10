@@ -1,3 +1,98 @@
+/**
+ * ==============================================================================
+ * DASHBOARD APPLICATION - MAIN SCRIPT
+ * ==============================================================================
+ * 
+ * Description: API Monitoring & Testing Dashboard
+ * Version: 2.0.0 (Refactored)
+ * Last Updated: 2025-11-10
+ * 
+ * ==============================================================================
+ * FILE ORGANIZATION
+ * ==============================================================================
+ * 
+ * This file contains ~4000 lines organized into the following sections:
+ * 
+ * 1. GLOBAL VARIABLES & STATE (lines 1-100)
+ *    - projectsData: Array of project objects
+ *    - pageTitle: Dashboard title
+ *    - currentProjectIndex: Currently edited project
+ *    - projectHistory: Change history log
+ *    - Monitor state management
+ * 
+ * 2. CONFIGURATION & CONSTANTS (lines 100-500)
+ *    - DEFAULT_MONITOR_TEMPLATE: Monitor configuration template
+ *    - MONITOR_CONFIG: Timeouts and intervals
+ *    - HTTP_METHODS: HTTP method constants
+ *    - Status labels and UI text
+ * 
+ * 3. MONITOR & API TESTING (lines 500-1500)
+ *    - Monitor run management
+ *    - API request execution
+ *    - Test result processing
+ *    - Login/authentication handling
+ *    - Token management
+ * 
+ * 4. UI MANAGEMENT & RENDERING (lines 1500-2500)
+ *    - Project card rendering
+ *    - Status indicator updates
+ *    - Tooltip management
+ *    - Tab system
+ *    - Toast notifications
+ * 
+ * 5. MODAL HANDLERS (lines 2500-3500)
+ *    - Edit project modal
+ *    - Add project modal
+ *    - History modal
+ *    - Monitor tabs UI
+ *    - Form handling
+ * 
+ * 6. EVENT LISTENERS & INITIALIZATION (lines 3500-4030)
+ *    - Theme toggle
+ *    - File upload/download
+ *    - Window load event
+ *    - Connectivity checking
+ *    - Scheduler initialization
+ * 
+ * ==============================================================================
+ * MODULAR COMPONENTS (Optional)
+ * ==============================================================================
+ * 
+ * For better organization, some functionality has been extracted to modules:
+ * 
+ * - js/config.js:   Configuration constants (optional import)
+ * - js/utils.js:    Utility functions (optional import)
+ * - js/storage.js:  localStorage operations (optional import)
+ * 
+ * These modules can be imported using ES6 modules for better code organization.
+ * See REFACTORING.md for migration guide.
+ * 
+ * ==============================================================================
+ * KEY FEATURES
+ * ==============================================================================
+ * 
+ * - Project Management: CRUD operations for projects
+ * - API Monitoring: Automated API health checks
+ * - Test Automation: Run test suites against APIs
+ * - Authentication: JWT token management
+ * - Scheduling: Automatic test runs at intervals
+ * - History Tracking: Audit log of all changes
+ * - Dark Mode: Theme toggle support
+ * - RTL Support: Hebrew language support
+ * - Mobile Responsive: Works on all devices
+ * 
+ * ==============================================================================
+ * SECURITY NOTES
+ * ==============================================================================
+ * 
+ * - All user input is sanitized via escapeHTML()
+ * - Tokens stored in localStorage (non-production only)
+ * - CORS-aware requests
+ * - No eval() or unsafe code execution
+ * 
+ * ==============================================================================
+ */
+
 // Global Variables
 let projectsData = []; // Stores all project entries
 let pageTitle = 'צוות בדיקות - סטטוס פרויקטים'; // Stores the page title
