@@ -670,11 +670,8 @@ function persistRunResult(project, index, results, context) {
     delete monitor.state.tokenKind;
     delete monitor.state.tokenStoredAt;
     
-    try {
-        localStorage.setItem('projectsData', JSON.stringify(projectsData));
-    } catch (error) {
-        console.warn('Failed to persist projectsData after manual run:', error);
-    }
+    // Use SafeStorage for error-handled localStorage operations
+    SafeStorage.setJSON('projectsData', projectsData);
     updateMonitorIndicatorsForProject(index);
 }
 
@@ -3207,7 +3204,7 @@ document.getElementById("toggle-theme").addEventListener("click", () => {
     document.body.classList.toggle("dark");
     // Persist theme preference in localStorage
     const isDarkMode = document.body.classList.contains("dark");
-    localStorage.setItem('darkMode', isDarkMode);
+    SafeStorage.setItem('darkMode', isDarkMode);
 });
 
 document.getElementById("fileInput").addEventListener("change", handleFileUpload);
@@ -3258,7 +3255,7 @@ function handleFileUpload(event) {
                         if (titleElement) {
                             titleElement.textContent = pageTitle;
                         }
-                        localStorage.setItem('pageTitle', pageTitle);
+                        SafeStorage.setItem('pageTitle', pageTitle);
                     }
                 } else {
                     throw new Error('Invalid JSON structure');
@@ -3266,7 +3263,7 @@ function handleFileUpload(event) {
                 
                 ensureMonitorDefaults(projectsData);
                 // Persist to localStorage
-                localStorage.setItem('projectsData', JSON.stringify(projectsData));
+                SafeStorage.setJSON('projectsData', projectsData);
                 // Log history entry
                 addToHistory('Import projects', 'All projects replaced from file');
                 // Re-render projects
@@ -3617,7 +3614,7 @@ function saveEdit() {
     runScheduledMonitorCycle();
 
     // Persist to localStorage
-    localStorage.setItem('projectsData', JSON.stringify(projectsData));
+    SafeStorage.setJSON('projectsData', projectsData);
 
     // Add to history
     addToHistory("עריכה", `עריכת פרויקט: ${oldName} -> ${project.name}`);
@@ -3830,7 +3827,7 @@ function saveNewProject() {
     projectsData.push(newProject);
     
     // Persist projects data in localStorage
-    localStorage.setItem('projectsData', JSON.stringify(projectsData));
+    SafeStorage.setJSON('projectsData', projectsData);
     
 
     addToHistory('Add', `Project added: ${projectName}`);
@@ -3862,7 +3859,7 @@ function confirmDelete(index) {
         projectsData.splice(index, 1);
         
         // Persist projects data in localStorage
-        localStorage.setItem('projectsData', JSON.stringify(projectsData));
+        SafeStorage.setJSON('projectsData', projectsData);
         
 
         addToHistory('Delete', `Project deleted: ${deletedProjectName}`);
@@ -3887,7 +3884,7 @@ function addToHistory(type, description) {
     projectHistory.push(historyItem);
     
     // Persist history in localStorage
-    localStorage.setItem('projectHistory', JSON.stringify(projectHistory));
+    SafeStorage.setJSON('projectHistory', projectHistory);
 }
 
 function addTextLengthLimit() {
@@ -3932,12 +3929,12 @@ function addTextLengthLimit() {
 }
 
 window.addEventListener('load', () => {
-    localStorage.removeItem('enableMonitorUI');
+    SafeStorage.removeItem('enableMonitorUI');
     initializeMonitorUI();
     startMonitorScheduler();
 
     // טעינת כותרת שמורה
-    const savedTitle = localStorage.getItem('pageTitle');
+    const savedTitle = SafeStorage.getItem('pageTitle');
     const titleElement = document.getElementById('page-title');
     if (savedTitle && titleElement) {
         titleElement.textContent = savedTitle;
@@ -3963,7 +3960,7 @@ window.addEventListener('load', () => {
         titleElement.addEventListener('blur', () => {
             const newTitle = titleElement.textContent.trim();
             if (newTitle) {
-                localStorage.setItem('pageTitle', newTitle);
+                SafeStorage.setItem('pageTitle', newTitle);
                 addToHistory('עדכון כותרת', `הכותרת שונתה ל: ${newTitle}`);
             }
         });
@@ -3977,43 +3974,26 @@ window.addEventListener('load', () => {
         });
     }
 
-    const savedDarkMode = localStorage.getItem('darkMode');
+    const savedDarkMode = SafeStorage.getItem('darkMode');
     if (savedDarkMode === 'true') {
         document.body.classList.add('dark');
     }
-    
 
-    const savedHistory = localStorage.getItem('projectHistory');
-    if (savedHistory) {
-        try {
-            projectHistory = JSON.parse(savedHistory);
-        } catch (e) {
-            console.error("שגיאה בטעינת היסטוריה:", e);
-            projectHistory = [];
+
+    // Load project history with SafeStorage
+    projectHistory = SafeStorage.getJSON('projectHistory', []);
+
+
+    // Load projects data with SafeStorage
+    projectsData = SafeStorage.getJSON('projectsData');
+
+    if (projectsData) {
+        const migrated = ensureMonitorDefaults(projectsData);
+        if (migrated) {
+            SafeStorage.setJSON('projectsData', projectsData);
         }
-    }
-    
-
-    const storedProjects = localStorage.getItem('projectsData');
-
-    if (storedProjects) {
-        try {
-            projectsData = JSON.parse(storedProjects);
-            const migrated = ensureMonitorDefaults(projectsData);
-            if (migrated) {
-                try {
-                    localStorage.setItem('projectsData', JSON.stringify(projectsData));
-                } catch (storageError) {
-                    console.warn("Cannot save to localStorage (incognito mode?):", storageError);
-                }
-            }
-            renderProjects(projectsData);
-            renderHotItems();
-        } catch (e) {
-            console.error("שגיאה בטעינת נתוני פרויקטים:", e);
-            projectsData = [];
-            renderProjects(projectsData);
-        }
+        renderProjects(projectsData);
+        renderHotItems();
     } else {
         // Try to load from projects.json, but handle failure gracefully
         fetch("projects.json")
@@ -4026,11 +4006,7 @@ window.addEventListener('load', () => {
             .then(data => {
                 projectsData = data;
                 ensureMonitorDefaults(projectsData);
-                try {
-                    localStorage.setItem('projectsData', JSON.stringify(projectsData));
-                } catch (storageError) {
-                    console.warn("Cannot save to localStorage (incognito mode?):", storageError);
-                }
+                SafeStorage.setJSON('projectsData', projectsData);
                 renderProjects(projectsData);
                 renderHotItems();
                 addToHistory("טעינה ראשונית", "טעינת נתונים מקובץ ברירת מחדל");
