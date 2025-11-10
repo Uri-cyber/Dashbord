@@ -961,16 +961,20 @@ async function executeTest(project, test, context, index) {
     return result;
 }
 
-function handleMonitorRunClick(index, options) {
-    if (monitorRunningProjects.has(index)) {
-        return;
-    }
-    runProjectChecks(index, options || { mode: 'manual' }).catch((error) => {
+async function handleMonitorRunClick(index, options) {
+    // Use MonitorQueue to prevent race conditions
+    const opts = options || { mode: 'manual' };
+
+    try {
+        await MonitorQueue.enqueue(index, async () => {
+            return await runProjectChecks(index, opts);
+        }, opts);
+    } catch (error) {
         console.error('Manual run failed:', error);
         monitorRunningProjects.delete(index);
         showMonitorToast('fail', 'Run failed', 'Unexpected error during manual run.');
         syncMonitorRunButtons(index);
-    });
+    }
 }
 
 async function runProjectChecks(index, options = {}) {
@@ -1100,7 +1104,8 @@ function runScheduledMonitorCycle() {
         if (!monitor) return;
         const schedule = monitor.schedule;
         if (!schedule || !schedule.enabled) return;
-        if (monitorRunningProjects.has(index)) return;
+        // Use MonitorQueue instead of manual check to prevent race conditions
+        if (MonitorQueue.isRunning(index)) return;
         if (monitorEditContext && monitorEditContext.isEditing && monitorEditContext.projectIndex === index) return;
         const intervalSec = Number(schedule.intervalSec);
         if (!Number.isFinite(intervalSec) || intervalSec <= 0) return;
@@ -1109,7 +1114,11 @@ function runScheduledMonitorCycle() {
         const lastRunAt = state.lastRunAt ? Date.parse(state.lastRunAt) : null;
         const due = !lastRunAt || Number.isNaN(lastRunAt) || (now - lastRunAt) >= intervalMs;
         if (!due) return;
-        runProjectChecks(index, { mode: 'schedule', source: 'schedule' }).catch((error) => {
+
+        // Use MonitorQueue to prevent race conditions
+        MonitorQueue.enqueue(index, async () => {
+            return await runProjectChecks(index, { mode: 'schedule', source: 'schedule' });
+        }, { mode: 'schedule', source: 'schedule' }).catch((error) => {
             console.error('Scheduled monitor run failed:', error);
         });
     });
