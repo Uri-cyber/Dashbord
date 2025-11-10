@@ -116,7 +116,7 @@ const DEFAULT_MONITOR_TEMPLATE = Object.freeze({
     tests: [],
     schedule: {
         enabled: false,
-        intervalSec: 3600
+        intervalSec: INTERVALS.MAX_SCHEDULE_SEC
     },
     state: {
         lastRunAt: null,
@@ -136,8 +136,8 @@ function createDefaultMonitor() {
     return JSON.parse(monitorTemplateJSON);
 }
 
-const MONITOR_REQUEST_TIMEOUT_MS = 15000;
-const MONITOR_SCHEDULE_POLL_INTERVAL_MS = 10000;
+const MONITOR_REQUEST_TIMEOUT_MS = TIMEOUTS.REQUEST_MS;
+const MONITOR_SCHEDULE_POLL_INTERVAL_MS = TIMEOUTS.SCHEDULE_POLL_MS;
 let monitorScheduleTimerId = null;
 const monitorRunControllers = new Map();
 const monitorRunningProjects = new Set();
@@ -367,7 +367,7 @@ function removeMonitorToast(toast, delay) {
                     monitorToastState.container = null;
                 }
             }
-        }, 240);
+        }, TIMEOUTS.TOAST_FADE_DURATION_MS);
     }, delay);
 }
 
@@ -388,7 +388,7 @@ function showMonitorToast(status, title, body) {
             toast.appendChild(bodyEl);
         }
         container.appendChild(toast);
-        removeMonitorToast(toast, 6000);
+        removeMonitorToast(toast, TIMEOUTS.TOAST_DISPLAY_MS);
     } catch (error) {
         console.warn('Failed to show monitor toast:', error);
     }
@@ -463,7 +463,7 @@ function renderMonitorTemplate(template, project, context) {
         password: login.password || '',
         token: context && context.token ? String(context.token) : '',
         timestamp: context && context.startedAt ? context.startedAt : new Date().toISOString(),
-        random: String(Math.floor(Math.random() * 1000000)),
+        random: String(Math.floor(Math.random() * RANDOM.MAX_ID_RANDOM)),
         lastCreatedId: context && context.lastCreatedId !== undefined && context.lastCreatedId !== null ? String(context.lastCreatedId) : ''
     };
     return str.replace(/\$\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
@@ -932,9 +932,9 @@ async function executeTest(project, test, context, index) {
             lastError: error
         };
     }
-    let expectedStatuses = Array.isArray(test.expectedStatus) && test.expectedStatus.length ? test.expectedStatus.map((value) => Number(value)).filter((value) => Number.isFinite(value)) : [200];
+    let expectedStatuses = Array.isArray(test.expectedStatus) && test.expectedStatus.length ? test.expectedStatus.map((value) => Number(value)).filter((value) => Number.isFinite(value)) : HTTP_STATUS.DEFAULT_EXPECTED;
     if (!expectedStatuses.length) {
-        expectedStatuses = [200];
+        expectedStatuses = HTTP_STATUS.DEFAULT_EXPECTED;
     }
     const statusCode = response.status;
     const passed = expectedStatuses.includes(statusCode);
@@ -1107,7 +1107,7 @@ function runScheduledMonitorCycle() {
         if (monitorEditContext && monitorEditContext.isEditing && monitorEditContext.projectIndex === index) return;
         const intervalSec = Number(schedule.intervalSec);
         if (!Number.isFinite(intervalSec) || intervalSec <= 0) return;
-        const intervalMs = Math.max(intervalSec, 30) * 1000;
+        const intervalMs = Math.max(intervalSec, INTERVALS.MIN_SCHEDULE_SEC) * 1000;
         const state = monitor.state || {};
         const lastRunAt = state.lastRunAt ? Date.parse(state.lastRunAt) : null;
         const due = !lastRunAt || Number.isNaN(lastRunAt) || (now - lastRunAt) >= intervalMs;
@@ -1208,8 +1208,8 @@ function buildMonitorTestsTooltip(project, statusInfo) {
         failuresList.className = 'monitor-tests-tooltip__failures';
         
         // Show up to 5 failures on desktop, 3 on mobile
-        const isMobile = window.innerWidth <= 768;
-        const maxShow = isMobile ? 3 : 5;
+        const isMobile = window.innerWidth <= BREAKPOINTS.MOBILE;
+        const maxShow = isMobile ? DISPLAY_LIMITS.FAILED_TESTS_MOBILE : DISPLAY_LIMITS.FAILED_TESTS_DESKTOP;
         const failuresToShow = statusInfo.failedTests.slice(0, maxShow);
         
         failuresToShow.forEach(failure => {
@@ -1737,7 +1737,7 @@ function buildChipTooltipContent(project) {
     const tests = Array.isArray(monitor && monitor.tests) ? monitor.tests : [];
     const testsState = (state && state.tests) ? state.tests : {};
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    const limit = isTouch ? 5 : 7;
+    const limit = isTouch ? DISPLAY_LIMITS.TOOLTIP_TESTS_MOBILE : DISPLAY_LIMITS.TOOLTIP_TESTS_DESKTOP;
     let shown = 0;
     tests.forEach((t) => {
         if (shown >= limit) return;
@@ -2308,7 +2308,7 @@ function clearFieldError(field) {
 }
 
 function generateTestId() {
-    return `test-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    return `test-${Date.now()}-${Math.floor(Math.random() * RANDOM.MAX_TEST_RANDOM)}`;
 }
 
 function headersObjectToText(headers) {
@@ -3021,7 +3021,7 @@ function loadMonitorExample() {
                     name: "Get Posts",
                     method: "GET",
                     path: "/posts",
-                    expectedStatus: [200],
+                    expectedStatus: HTTP_STATUS.DEFAULT_EXPECTED,
                     bodyTemplate: "",
                     headers: {},
                     required: true,
@@ -3032,7 +3032,7 @@ function loadMonitorExample() {
                     name: "Create Post",
                     method: "POST",
                     path: "/posts",
-                    expectedStatus: [201],
+                    expectedStatus: [HTTP_STATUS.CREATED],
                     bodyTemplate: '{"title":"Test Post","body":"Example content","userId":1}',
                     headers: { "Content-Type": "application/json" },
                     required: true,
@@ -3043,14 +3043,14 @@ function loadMonitorExample() {
                     name: "Delete Post",
                     method: "DELETE",
                     path: "/posts/1",
-                    expectedStatus: [200],
+                    expectedStatus: HTTP_STATUS.DEFAULT_EXPECTED,
                     bodyTemplate: "",
                     headers: {},
                     required: false,
                     requiresLogin: false
                 }
             ],
-            schedule: { enabled: false, intervalSec: 300 }
+            schedule: { enabled: false, intervalSec: INTERVALS.DEFAULT_SCHEDULE_SEC }
         };
 
         setMonitorTextValue('monitor-base-url', exampleConfig.baseUrl);
@@ -3308,30 +3308,30 @@ function renderProjects(projects) {
         card.className = "card";
         card.dataset.index = String(index); // FIX: Add data-index to card for updateMonitorIndicatorsForProject
 
-        const truncatedName = truncateText(project.name, 20);
+        const truncatedName = truncateText(project.name, TEXT_LIMITS.PROJECT_NAME);
 
         let fieldsHTML = "";
         let hasAnyField = false;
         
         // בדיקה אם יש לפחות שדה אחד עם מידע
-        for (let i = 1; i <= 4; i++) {
+        for (let i = INDICES.FIELD_START; i <= FIELD_LIMITS.MAX_FIELDS; i++) {
             const fieldValue = project.fields?.[i];
             if (fieldValue && fieldValue.trim() !== "" && fieldValue.trim().toLowerCase() !== "no value") {
                 hasAnyField = true;
                 break;
             }
         }
-        
+
         if (!hasAnyField) {
             // אין שום מידע - הצג הודעה במקום השורה הראשונה, ושאר השורות נסתרות
             fieldsHTML = `<p class="card-text" style="text-align: center; color: rgba(0, 0, 0, 0.4); font-style: italic; margin: 0;">אין מידע זמין על הפרויקט</p>`;
             // הוסף 3 שורות נסתרות נוספות כדי לשמור על גובה הכרטיס
-            for (let i = 0; i < 3; i++) {
+            for (let i = INDICES.FIRST; i < (FIELD_LIMITS.MAX_FIELDS - 1); i++) {
                 fieldsHTML += `<p class="card-text" style="visibility: hidden;">&nbsp;</p>`;
             }
         } else {
             // יש מידע - הצג שדות
-            for (let i = 1; i <= 4; i++) {
+            for (let i = INDICES.FIELD_START; i <= FIELD_LIMITS.MAX_FIELDS; i++) {
                 const fieldValue = project.fields?.[i];
                 // Skip if no value or "No value"
                 if (!fieldValue || fieldValue.trim() === "" || fieldValue.trim().toLowerCase() === "no value") {
@@ -3339,8 +3339,8 @@ function renderProjects(projects) {
                     fieldsHTML += `<p class="card-text" style="visibility: hidden;">&nbsp;</p>`;
                     continue;
                 }
-                const fieldName = truncateText(project.fieldNames?.[i] || `Field ${i}`, 15);
-                const truncatedValue = truncateText(fieldValue, 20);
+                const fieldName = truncateText(project.fieldNames?.[i] || `Field ${i}`, TEXT_LIMITS.FIELD_NAME);
+                const truncatedValue = truncateText(fieldValue, TEXT_LIMITS.FIELD_VALUE);
                 fieldsHTML += `<p class="card-text"><strong>${fieldName}:</strong> ${truncatedValue}</p>`;
             }
         }
@@ -3439,7 +3439,7 @@ function openEditModal(index) {
     const editName = document.getElementById("edit-name");
     if (editName) {
         editName.value = project.name || "";
-        editName.setAttribute('maxlength', '20');
+        editName.setAttribute('maxlength', String(TEXT_LIMITS.PROJECT_NAME));
     }
 
     const fieldsContainer = document.getElementById("edit-fields-container");
@@ -3451,7 +3451,7 @@ function openEditModal(index) {
     // Dynamic informative fields (up to 4). Start with existing count or at least 1
     const computeInitialCount = () => {
         let count = 0;
-        for (let i = 1; i <= 4; i++) {
+        for (let i = INDICES.FIELD_START; i <= FIELD_LIMITS.MAX_FIELDS; i++) {
             const hasName = project.fieldNames && project.fieldNames[i];
             const hasVal = project.fields && project.fields[i];
             if (hasName || hasVal) count = i;
@@ -3460,10 +3460,10 @@ function openEditModal(index) {
     };
     const renderFieldBlock = (i, nameVal, valueVal) => `
             <label for="edit-field-name-${i}">שם שדה ${i}:</label>
-            <input type="text" id="edit-field-name-${i}" value="${escapeHTML(nameVal ?? `Field ${i}`)}" maxlength="15">
+            <input type="text" id="edit-field-name-${i}" value="${escapeHTML(nameVal ?? `Field ${i}`)}" maxlength="${TEXT_LIMITS.FIELD_NAME}">
 
             <label for="edit-field-value-${i}">ערך שדה ${i}:</label>
-            <input type="text" id="edit-field-value-${i}" value="${escapeHTML(valueVal ?? 'No value')}" maxlength="20">
+            <input type="text" id="edit-field-value-${i}" value="${escapeHTML(valueVal ?? 'No value')}" maxlength="${TEXT_LIMITS.FIELD_VALUE}">
         `;
 
     let fieldsHTML = "";
@@ -3491,14 +3491,14 @@ function openEditModal(index) {
     const getEditCount = () => fieldsContainer.querySelectorAll('input[id^="edit-field-name-"]').length;
     const updateEditButtons = () => {
         const count = getEditCount();
-        if (editPlus) editPlus.style.display = count >= 4 ? 'none' : '';
-        if (editMinus) editMinus.disabled = count <= 1;
+        if (editPlus) editPlus.style.display = count >= FIELD_LIMITS.MAX_FIELDS ? 'none' : '';
+        if (editMinus) editMinus.disabled = count <= FIELD_LIMITS.MIN_FIELDS;
     };
     if (editPlus) {
         editPlus.addEventListener('click', (e) => {
             try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch(_) {}
             const current = getEditCount();
-            if (current >= 4) return;
+            if (current >= FIELD_LIMITS.MAX_FIELDS) return;
             const idx = current + 1;
             const fragment = document.createElement('div');
             fragment.innerHTML = renderFieldBlock(idx, `Field ${idx}`, 'No value');
@@ -3514,7 +3514,7 @@ function openEditModal(index) {
         editMinus.addEventListener('click', (e) => {
             try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch(_) {}
             const current = getEditCount();
-            if (current <= 1) return;
+            if (current <= FIELD_LIMITS.MIN_FIELDS) return;
             const idx = current;
             const nameInput = document.getElementById(`edit-field-name-${idx}`);
             const valueInput = document.getElementById(`edit-field-value-${idx}`);
@@ -3558,7 +3558,7 @@ function saveEdit() {
     }
 
     // Update custom fields
-    for (let i = 1; i <= 4; i++) {
+    for (let i = INDICES.FIELD_START; i <= FIELD_LIMITS.MAX_FIELDS; i++) {
         const fieldNameInput = document.getElementById(`edit-field-name-${i}`);
         const fieldValueInput = document.getElementById(`edit-field-value-${i}`);
 
@@ -3605,7 +3605,7 @@ function saveEdit() {
     if (schedule.intervalSec !== undefined) {
         const interval = Number(schedule.intervalSec);
         if (!Number.isNaN(interval)) {
-            schedule.intervalSec = Math.min(Math.max(interval, 30), 3600);
+            schedule.intervalSec = Math.min(Math.max(interval, INTERVALS.MIN_SCHEDULE_SEC), INTERVALS.MAX_SCHEDULE_SEC);
         }
     }
     project.monitor.schedule = schedule;
@@ -3658,7 +3658,7 @@ function openAddModal() {
     const addURL = document.getElementById('add-url');
     if (addURL) addURL.value = '';
 
-    for (let i = 1; i <= 4; i++) {
+    for (let i = INDICES.FIELD_START; i <= FIELD_LIMITS.MAX_FIELDS; i++) {
         const fieldNameInput = document.getElementById(`add-field-name-${i}`);
         const fieldValueInput = document.getElementById(`add-field-value-${i}`);
         if (fieldNameInput) fieldNameInput.value = '';
@@ -3670,9 +3670,9 @@ function openAddModal() {
     if (addFieldsContainer) {
         const renderAddBlock = (i) => `
             <label for="add-field-name-${i}">שם שדה ${i}:</label>
-            <input type="text" id="add-field-name-${i}" maxlength="15" placeholder="Field ${i}">
+            <input type="text" id="add-field-name-${i}" maxlength="${TEXT_LIMITS.FIELD_NAME}" placeholder="Field ${i}">
             <label for="add-field-value-${i}">ערך שדה ${i}:</label>
-            <input type="text" id="add-field-value-${i}" maxlength="20" placeholder="No value">
+            <input type="text" id="add-field-value-${i}" maxlength="${TEXT_LIMITS.FIELD_VALUE}" placeholder="No value">
         `;
         addFieldsContainer.innerHTML = renderAddBlock(1) + `
             <div class="dynamic-add-wrapper">
@@ -3685,14 +3685,14 @@ function openAddModal() {
         const getAddCount = () => addFieldsContainer.querySelectorAll('input[id^="add-field-name-"]').length;
         const updateAddButtons = () => {
             const count = getAddCount();
-            if (addPlus) addPlus.style.display = count >= 4 ? 'none' : '';
-            if (addMinus) addMinus.disabled = count <= 1;
+            if (addPlus) addPlus.style.display = count >= FIELD_LIMITS.MAX_FIELDS ? 'none' : '';
+            if (addMinus) addMinus.disabled = count <= FIELD_LIMITS.MIN_FIELDS;
         };
         if (addPlus) {
             addPlus.addEventListener('click', (e) => {
                 try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch(_) {}
                 const current = getAddCount();
-                if (current >= 4) return;
+                if (current >= FIELD_LIMITS.MAX_FIELDS) return;
                 const idx = current + 1;
                 const frag = document.createElement('div');
                 frag.innerHTML = renderAddBlock(idx);
@@ -3708,7 +3708,7 @@ function openAddModal() {
             addMinus.addEventListener('click', (e) => {
                 try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch(_) {}
                 const current = getAddCount();
-                if (current <= 1) return;
+                if (current <= FIELD_LIMITS.MIN_FIELDS) return;
                 const idx = current;
                 const nameInput = document.getElementById(`add-field-name-${idx}`);
                 const valueInput = document.getElementById(`add-field-value-${idx}`);
@@ -3814,7 +3814,7 @@ function saveNewProject() {
     };
     
 
-    for (let i = 1; i <= 4; i++) {
+    for (let i = INDICES.FIELD_START; i <= FIELD_LIMITS.MAX_FIELDS; i++) {
         const fieldNameInput = document.getElementById(`add-field-name-${i}`);
         const fieldValueInput = document.getElementById(`add-field-value-${i}`);
         
@@ -3894,39 +3894,39 @@ function addTextLengthLimit() {
 
     const addNameInput = document.getElementById('add-name');
     if (addNameInput) {
-        addNameInput.setAttribute('maxlength', '20');
+        addNameInput.setAttribute('maxlength', String(TEXT_LIMITS.PROJECT_NAME));
     }
-    
+
 
     const editNameInput = document.getElementById('edit-name');
     if (editNameInput) {
-        editNameInput.setAttribute('maxlength', '20');
+        editNameInput.setAttribute('maxlength', String(TEXT_LIMITS.PROJECT_NAME));
     }
-    
 
-    for (let i = 1; i <= 4; i++) {
+
+    for (let i = 1; i <= FIELD_LIMITS.MAX_FIELDS; i++) {
 
         const addFieldNameInput = document.getElementById(`add-field-name-${i}`);
         const addFieldValueInput = document.getElementById(`add-field-value-${i}`);
-        
+
         if (addFieldNameInput) {
-            addFieldNameInput.setAttribute('maxlength', '15');
+            addFieldNameInput.setAttribute('maxlength', String(TEXT_LIMITS.FIELD_NAME));
         }
-        
+
         if (addFieldValueInput) {
-            addFieldValueInput.setAttribute('maxlength', '20');
+            addFieldValueInput.setAttribute('maxlength', String(TEXT_LIMITS.FIELD_VALUE));
         }
-        
+
 
         const editFieldNameInput = document.getElementById(`edit-field-name-${i}`);
         const editFieldValueInput = document.getElementById(`edit-field-value-${i}`);
-        
+
         if (editFieldNameInput) {
-            editFieldNameInput.setAttribute('maxlength', '15');
+            editFieldNameInput.setAttribute('maxlength', String(TEXT_LIMITS.FIELD_NAME));
         }
-        
+
         if (editFieldValueInput) {
-            editFieldValueInput.setAttribute('maxlength', '20');
+            editFieldValueInput.setAttribute('maxlength', String(TEXT_LIMITS.FIELD_VALUE));
         }
     }
 }
