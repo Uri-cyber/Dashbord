@@ -977,21 +977,29 @@ async function handleMonitorRunClick(index, options) {
     }
 }
 
-async function runProjectChecks(index, options = {}) {
+/**
+ * Prepare monitor run - validate project and setup context
+ *
+ * @param {number} index - Project index
+ * @param {Object} options - Run options (mode, source, preview)
+ * @returns {Object|null} - { project, monitor, context, isPreview } or null if invalid
+ */
+function prepareMonitorRun(index, options = {}) {
     const project = projectsData[index];
     if (!project) {
         showMonitorToast('unknown', 'Run skipped', 'Project not found.');
-        return;
+        return null;
     }
     if (!project.monitor) {
         showMonitorToast('unknown', 'Run skipped', 'Monitor is not configured for this project.');
-        return;
+        return null;
     }
+
     const isPreview = Boolean(options && options.preview);
     const context = getMonitorRunContext(index);
     resetMonitorRunContext(context, options.mode || 'manual');
     context.source = options && options.source ? options.source : 'card';
-    
+
     // SECURITY FIX: Load existing token from TokenManager (secure in-memory storage)
     const storedToken = TokenManager.getToken(index);
     console.log('🔍 Checking for existing token in TokenManager:', {
@@ -1006,63 +1014,106 @@ async function runProjectChecks(index, options = {}) {
     } else {
         console.log('❌ No existing token found in TokenManager');
     }
-    
+
     beginMonitorRun(index, context);
-    const monitor = project.monitor;
-    const tests = Array.isArray(monitor.tests) ? monitor.tests : [];
+
+    return {
+        project,
+        monitor: project.monitor,
+        context,
+        isPreview
+    };
+}
+
+/**
+ * Execute login if configured for the monitor
+ *
+ * @param {Object} project - Project data
+ * @param {Object} context - Monitor run context
+ * @returns {Promise<boolean>} - True if successful or not needed, false if aborted
+ */
+async function executeLoginIfNeeded(project, context) {
+    await performLogin(project, context);
+    return !context.aborted;
+}
+
+/**
+ * Execute all monitor tests
+ *
+ * @param {Object} project - Project data
+ * @param {Array} tests - Array of test configurations
+ * @param {Object} context - Monitor run context
+ * @param {Object} monitor - Monitor configuration
+ * @returns {Promise<Object>} - { results, shortCircuitReason }
+ */
+async function executeAllMonitorTests(project, tests, context, monitor) {
     const results = [];
-    let runError = null;
     let shortCircuitReason = null;
-    try {
-        if (!monitor.baseUrl) {
-            shortCircuitReason = 'missing-base-url';
-            results.push({
-                id: 'base-url',
-                name: 'Base URL not configured',
-                required: true,
-                status: 'unknown',
-                lastCode: null,
-                lastError: 'missing-base-url'
-            });
-        } else {
-            await performLogin(project, context);
+
+    if (!monitor.baseUrl) {
+        shortCircuitReason = 'missing-base-url';
+        results.push({
+            id: 'base-url',
+            name: 'Base URL not configured',
+            required: true,
+            status: 'unknown',
+            lastCode: null,
+            lastError: 'missing-base-url'
+        });
+        return { results, shortCircuitReason };
+    }
+
+    const loginSuccess = await executeLoginIfNeeded(project, context);
+    if (!loginSuccess) {
+        return { results, shortCircuitReason };
+    }
+
+    if (!tests.length) {
+        results.push({
+            id: 'no-tests',
+            name: 'No tests configured',
+            required: false,
+            status: 'unknown',
+            lastCode: null,
+            lastError: 'no-tests'
+        });
+    } else {
+        for (let i = 0; i < tests.length; i += 1) {
+            const test = tests[i];
+            const result = await executeTest(project, test, context, i);
+            results.push(result);
             if (context.aborted) {
-                return;
-            }
-            if (!tests.length) {
-                results.push({
-                    id: 'no-tests',
-                    name: 'No tests configured',
-                    required: false,
-                    status: 'unknown',
-                    lastCode: null,
-                    lastError: 'no-tests'
-                });
-            } else {
-                for (let i = 0; i < tests.length; i += 1) {
-                    const test = tests[i];
-                    const result = await executeTest(project, test, context, i);
-                    results.push(result);
-                    if (context.aborted) {
-                        break;
-                    }
-                }
+                break;
             }
         }
-    } catch (error) {
-        runError = error;
-    } finally {
-        endMonitorRun(index, context);
     }
+
+    return { results, shortCircuitReason };
+}
+
+/**
+ * Finalize monitor run - persist results and show notifications
+ *
+ * @param {Object} project - Project data
+ * @param {number} index - Project index
+ * @param {Array} results - Test results array
+ * @param {Object} context - Monitor run context
+ * @param {Error|null} runError - Run error if any
+ * @param {string|null} shortCircuitReason - Short circuit reason
+ * @param {boolean} isPreview - Preview mode flag
+ */
+function finalizeMonitorRun(project, index, results, context, runError, shortCircuitReason, isPreview) {
     if (context.aborted) {
         showMonitorToast('unknown', 'Run canceled', 'Manual run was canceled.');
         return;
     }
+
     if (runError) {
         console.error('Manual monitor run failed:', runError);
         showMonitorToast('fail', 'Run failed', 'Unexpected error during manual run.');
         return;
     }
+
     if (shortCircuitReason === 'missing-base-url') {
         if (!isPreview) {
             persistRunResult(project, index, results, context);
@@ -1070,14 +1121,17 @@ async function runProjectChecks(index, options = {}) {
         showMonitorToast('unknown', 'Run incomplete', 'Base URL is missing for this project.');
         return;
     }
+
     if (!isPreview) {
         persistRunResult(project, index, results, context);
     }
+
     const overall = computeOverall(results);
     const summary = summarizeMonitorResults(results);
     const overallLabel = MONITOR_RUN_STATUS_LABELS[overall] || overall;
     const failedTests = Array.isArray(results) ? results.filter(r => r && r.status === 'fail') : [];
     const unknownTests = Array.isArray(results) ? results.filter(r => r && r.status === 'unknown') : [];
+
     let toastBody = `${summary.pass}/${summary.total} passed (${summary.fail} failed, ${summary.unknown} unknown)`;
     if (failedTests.length > 0) {
         const names = failedTests.slice(0, 2).map(r => r.name || r.id).filter(Boolean);
@@ -1090,7 +1144,44 @@ async function runProjectChecks(index, options = {}) {
     } else if (unknownTests.length > 0) {
         toastBody = `${summary.pass}/${summary.total} passed, ${unknownTests.length} unknown`;
     }
+
     showMonitorToast(overall, `Run completed: ${overallLabel}`, toastBody);
+}
+
+/**
+ * Run all monitor checks for a project
+ *
+ * Orchestrates the complete monitor run by calling specialized helper functions.
+ *
+ * @param {number} index - Project index
+ * @param {Object} options - Run options (mode, source, preview)
+ */
+async function runProjectChecks(index, options = {}) {
+    // Prepare monitor run - validate and setup context
+    const prepared = prepareMonitorRun(index, options);
+    if (!prepared) {
+        return;
+    }
+
+    const { project, monitor, context, isPreview } = prepared;
+    const tests = Array.isArray(monitor.tests) ? monitor.tests : [];
+    let results = [];
+    let runError = null;
+    let shortCircuitReason = null;
+
+    try {
+        // Execute all tests (includes login if needed)
+        const testResult = await executeAllMonitorTests(project, tests, context, monitor);
+        results = testResult.results;
+        shortCircuitReason = testResult.shortCircuitReason;
+    } catch (error) {
+        runError = error;
+    } finally {
+        endMonitorRun(index, context);
+    }
+
+    // Finalize monitor run - persist and notify
+    finalizeMonitorRun(project, index, results, context, runError, shortCircuitReason, isPreview);
 }
 
 function runScheduledMonitorCycle() {
@@ -2684,14 +2775,19 @@ function handleTestMoveDown(index) {
     renderMonitorTestsEditor();
 }
 
-function collectMonitorFromForm(modal, project) {
-    clearMonitorValidation();
-    const errors = [];
-    let firstInvalid = null;
-
+/**
+ * Validate and collect base URL from monitor form
+ *
+ * @param {HTMLElement} modal - Modal element containing form
+ * @param {Array} errors - Error array to append to
+ * @param {HTMLElement|null} firstInvalid - First invalid field (or null)
+ * @returns {Object} - { baseUrl: string, firstInvalid: HTMLElement|null }
+ */
+function validateAndCollectBaseUrl(modal, errors, firstInvalid) {
     const baseUrlInput = modal.querySelector('#monitor-base-url');
     const baseUrlValue = baseUrlInput ? baseUrlInput.value.trim() : '';
     let baseUrl = '';
+
     if (baseUrlValue) {
         try {
             const parsedUrl = new URL(baseUrlValue);
@@ -2703,6 +2799,18 @@ function collectMonitorFromForm(modal, project) {
         }
     }
 
+    return { baseUrl, firstInvalid };
+}
+
+/**
+ * Validate and collect login configuration from monitor form
+ *
+ * @param {HTMLElement} modal - Modal element containing form
+ * @param {Array} errors - Error array to append to
+ * @param {HTMLElement|null} firstInvalid - First invalid field (or null)
+ * @returns {Object} - { loginConfig: object, firstInvalid: HTMLElement|null }
+ */
+function validateAndCollectLogin(modal, errors, firstInvalid) {
     const loginPathInput = modal.querySelector('#monitor-login-path');
     const loginMethodSelect = modal.querySelector('#monitor-login-method');
     const loginUsernameInput = modal.querySelector('#monitor-login-username');
@@ -2714,6 +2822,7 @@ function collectMonitorFromForm(modal, project) {
     const loginEnabledCheckbox = modal.querySelector('#monitor-login-enabled');
     const persistPasswordCheckbox = modal.querySelector('#monitor-persist-password');
 
+    // Validate login method
     const loginMethod = (loginMethodSelect?.value || 'GET').toUpperCase();
     if (!MONITOR_ALLOWED_METHODS.includes(loginMethod)) {
         showFieldError(loginMethodSelect, 'Method must be GET/POST/PUT/PATCH/DELETE');
@@ -2723,6 +2832,7 @@ function collectMonitorFromForm(modal, project) {
         loginMethodSelect.value = loginMethod;
     }
 
+    // Validate token location
     const tokenLocationValue = tokenLocationSelect?.value ? tokenLocationSelect.value.trim() : '';
     if (tokenLocationValue) {
         const tokenResult = ValidationService.validateTokenLocation(tokenLocationValue);
@@ -2733,10 +2843,36 @@ function collectMonitorFromForm(modal, project) {
         }
     }
 
+    const loginConfig = {
+        enabled: Boolean(loginEnabledCheckbox?.checked),
+        path: loginPathInput?.value.trim() || '',
+        method: loginMethod,
+        username: loginUsernameInput?.value || '',
+        password: loginPasswordInput?.value || '',
+        bodyTemplate: loginBodyInput?.value || '',
+        tokenLocation: tokenLocationValue,
+        tokenHeaderName: tokenHeaderInput?.value || '',
+        tokenPrefix: tokenPrefixInput?.value || '',
+        persistPassword: Boolean(persistPasswordCheckbox?.checked)
+    };
+
+    return { loginConfig, firstInvalid };
+}
+
+/**
+ * Validate and collect schedule configuration from monitor form
+ *
+ * @param {HTMLElement} modal - Modal element containing form
+ * @param {Array} errors - Error array to append to
+ * @param {HTMLElement|null} firstInvalid - First invalid field (or null)
+ * @returns {Object} - { scheduleConfig: object, firstInvalid: HTMLElement|null }
+ */
+function validateAndCollectSchedule(modal, errors, firstInvalid) {
     const scheduleEnabledCheckbox = modal.querySelector('#monitor-schedule-enabled');
     const scheduleIntervalInput = modal.querySelector('#monitor-schedule-interval');
     let intervalValue = Number(scheduleIntervalInput?.value || 0);
-    // Validate interval only when schedule is enabled; otherwise skip validation
+
+    // Validate interval only when schedule is enabled
     if (Boolean(scheduleEnabledCheckbox?.checked)) {
         const intervalResult = ValidationService.validateInterval(intervalValue);
         if (!intervalResult.valid) {
@@ -2746,7 +2882,24 @@ function collectMonitorFromForm(modal, project) {
         }
     }
 
+    const scheduleConfig = {
+        enabled: Boolean(scheduleEnabledCheckbox?.checked),
+        intervalSec: intervalValue
+    };
+
+    return { scheduleConfig, firstInvalid };
+}
+
+/**
+ * Validate and collect all tests from monitor edit context
+ *
+ * @param {Array} errors - Error array to append to
+ * @param {HTMLElement|null} firstInvalid - First invalid field (or null)
+ * @returns {Object} - { tests: array, firstInvalid: HTMLElement|null }
+ */
+function validateAndCollectTests(errors, firstInvalid) {
     const tests = [];
+
     monitorEditContext.tests.forEach((test, index) => {
         const method = (test.method || 'GET').toUpperCase();
         const methodField = document.querySelector(`select[data-test-index="${index}"][data-field="method"]`);
@@ -2792,6 +2945,37 @@ function collectMonitorFromForm(modal, project) {
         });
     });
 
+    return { tests, firstInvalid };
+}
+
+/**
+ * Collect and validate all monitor configuration from form
+ *
+ * Orchestrates validation by calling specialized helper functions for each section.
+ *
+ * @param {HTMLElement} modal - Modal element containing form
+ * @param {Object} project - Project data (currently unused)
+ * @returns {Object|null} - Monitor configuration object or null if validation fails
+ */
+function collectMonitorFromForm(modal, project) {
+    clearMonitorValidation();
+    const errors = [];
+    let firstInvalid = null;
+
+    // Validate and collect each section using helper functions
+    const baseUrlResult = validateAndCollectBaseUrl(modal, errors, firstInvalid);
+    firstInvalid = baseUrlResult.firstInvalid;
+
+    const loginResult = validateAndCollectLogin(modal, errors, firstInvalid);
+    firstInvalid = loginResult.firstInvalid;
+
+    const scheduleResult = validateAndCollectSchedule(modal, errors, firstInvalid);
+    firstInvalid = scheduleResult.firstInvalid;
+
+    const testsResult = validateAndCollectTests(errors, firstInvalid);
+    firstInvalid = testsResult.firstInvalid;
+
+    // Handle validation errors
     if (errors.length) {
         monitorEditContext.hasValidationErrors = true;
         updateMonitorActionButtons();
@@ -2801,27 +2985,14 @@ function collectMonitorFromForm(modal, project) {
         return null;
     }
 
+    // All validation passed - return complete monitor configuration
     monitorEditContext.hasValidationErrors = false;
     updateMonitorActionButtons();
     return {
-        baseUrl,
-        login: {
-            enabled: Boolean(loginEnabledCheckbox?.checked),
-            path: loginPathInput?.value.trim() || '',
-            method: loginMethod,
-            username: loginUsernameInput?.value || '',
-            password: loginPasswordInput?.value || '',
-            bodyTemplate: loginBodyInput?.value || '',
-            tokenLocation: tokenLocationValue,
-            tokenHeaderName: tokenHeaderInput?.value || '',
-            tokenPrefix: tokenPrefixInput?.value || '',
-            persistPassword: Boolean(persistPasswordCheckbox?.checked)
-        },
-        tests,
-        schedule: {
-            enabled: Boolean(scheduleEnabledCheckbox?.checked),
-            intervalSec: intervalValue
-        }
+        baseUrl: baseUrlResult.baseUrl,
+        login: loginResult.loginConfig,
+        tests: testsResult.tests,
+        schedule: scheduleResult.scheduleConfig
     };
 }
 
@@ -3376,14 +3547,26 @@ function renderProjects(projects) {
     runScheduledMonitorCycle();
 }
 
-function openEditModal(index) {
+/**
+ * Validate project index before opening edit modal
+ *
+ * @param {number} index - Project index to validate
+ * @returns {boolean} - True if valid, false otherwise
+ */
+function validateProjectIndexForEdit(index) {
     if (index < 0 || index >= projectsData.length) {
         alert('Invalid project index.');
-        return;
+        return false;
     }
+    return true;
+}
 
-    currentProjectIndex = index;
-    const project = projectsData[index];
+/**
+ * Setup monitor tabs for editing a project
+ *
+ * @param {Object} project - Project data
+ */
+function setupMonitorTabsForEdit(project) {
     const monitorTabsContainer = document.getElementById('monitor-tabs');
     if (monitorTabsContainer) {
         clearMonitorTabs();
@@ -3392,7 +3575,14 @@ function openEditModal(index) {
         populateMonitorTabs(project);
         monitorTabsContainer.hidden = false;
     }
+}
 
+/**
+ * Setup modal buttons (cancel, delete, save, run) for edit modal
+ *
+ * @param {number} index - Project index
+ */
+function setupEditModalButtons(index) {
     const {
         header: monitorHeader,
         cancelButton: monitorCancelButton,
@@ -3422,24 +3612,45 @@ function openEditModal(index) {
         monitorDeleteButton.hidden = false;
         monitorDeleteButton.disabled = false;
     }
+
     if (legacySaveButton) {
         legacySaveButton.hidden = false;
         legacySaveButton.disabled = false;
     }
+}
 
+/**
+ * Populate basic project fields (name, URL) in edit modal
+ *
+ * @param {Object} project - Project data
+ */
+function populateBasicEditFields(project) {
     const editName = document.getElementById("edit-name");
     if (editName) {
         editName.value = project.name || "";
         editName.setAttribute('maxlength', String(TEXT_LIMITS.PROJECT_NAME));
     }
 
-    const fieldsContainer = document.getElementById("edit-fields-container");
+    const editURL = document.getElementById("edit-url");
+    if (editURL) {
+        editURL.value = project.url || "";
+    }
+}
+
+/**
+ * Setup dynamic fields editor with add/remove functionality
+ *
+ * @param {Object} project - Project data
+ * @param {HTMLElement} fieldsContainer - Container for dynamic fields
+ * @returns {boolean} - True if setup successful, false otherwise
+ */
+function setupDynamicFieldsEditor(project, fieldsContainer) {
     if (!fieldsContainer) {
         console.error("שגיאה: לא נמצא האלמנט edit-fields-container!");
-        return;
+        return false;
     }
 
-    // Dynamic informative fields (up to 4). Start with existing count or at least 1
+    // Compute initial field count based on existing data
     const computeInitialCount = () => {
         let count = 0;
         for (let i = INDICES.FIELD_START; i <= FIELD_LIMITS.MAX_FIELDS; i++) {
@@ -3449,6 +3660,8 @@ function openEditModal(index) {
         }
         return Math.max(1, count);
     };
+
+    // Render single field block
     const renderFieldBlock = (i, nameVal, valueVal) => `
             <label for="edit-field-name-${i}">שם שדה ${i}:</label>
             <input type="text" id="edit-field-name-${i}" value="${escapeHTML(nameVal ?? `Field ${i}`)}" maxlength="${TEXT_LIMITS.FIELD_NAME}">
@@ -3457,6 +3670,7 @@ function openEditModal(index) {
             <input type="text" id="edit-field-value-${i}" value="${escapeHTML(valueVal ?? 'No value')}" maxlength="${TEXT_LIMITS.FIELD_VALUE}">
         `;
 
+    // Build initial HTML for all fields
     let fieldsHTML = "";
     const initialCount = computeInitialCount();
     for (let i = 1; i <= initialCount; i++) {
@@ -3470,13 +3684,10 @@ function openEditModal(index) {
             <button type="button" id="edit-remove-field-button" class="monitor-ghost-button dynamic-minus" aria-label="Remove field">–</button>
         </div>
     `;
-        
-    const editURL = document.getElementById("edit-url");
-    if (editURL) {
-        editURL.value = project.url || "";
-    }
+
     fieldsContainer.innerHTML = fieldsHTML;
-    // Wire the plus/minus buttons to add/remove fields (1..4)
+
+    // Wire up add/remove button handlers
     const editPlus = document.getElementById('edit-add-field-button');
     const editMinus = document.getElementById('edit-remove-field-button');
     const getEditCount = () => fieldsContainer.querySelectorAll('input[id^="edit-field-name-"]').length;
@@ -3485,6 +3696,7 @@ function openEditModal(index) {
         if (editPlus) editPlus.style.display = count >= FIELD_LIMITS.MAX_FIELDS ? 'none' : '';
         if (editMinus) editMinus.disabled = count <= FIELD_LIMITS.MIN_FIELDS;
     };
+
     if (editPlus) {
         editPlus.addEventListener('click', (e) => {
             try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch(_) {}
@@ -3501,6 +3713,7 @@ function openEditModal(index) {
             updateEditButtons();
         });
     }
+
     if (editMinus) {
         editMinus.addEventListener('click', (e) => {
             try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch(_) {}
@@ -3515,7 +3728,41 @@ function openEditModal(index) {
             updateEditButtons();
         });
     }
+
     updateEditButtons();
+    return true;
+}
+
+/**
+ * Open edit modal for a project
+ *
+ * Orchestrates modal setup by calling specialized helper functions.
+ *
+ * @param {number} index - Project index to edit
+ */
+function openEditModal(index) {
+    // Validate project index
+    if (!validateProjectIndexForEdit(index)) {
+        return;
+    }
+
+    currentProjectIndex = index;
+    const project = projectsData[index];
+
+    // Setup monitor tabs
+    setupMonitorTabsForEdit(project);
+
+    // Setup modal buttons
+    setupEditModalButtons(index);
+
+    // Populate basic fields (name, URL)
+    populateBasicEditFields(project);
+
+    // Setup dynamic fields editor
+    const fieldsContainer = document.getElementById("edit-fields-container");
+    if (!setupDynamicFieldsEditor(project, fieldsContainer)) {
+        return;
+    }
 
     // Show the modal
     const editModal = document.getElementById('edit-modal');
@@ -3524,24 +3771,39 @@ function openEditModal(index) {
     }
 }
 
-// NEW FUNCTION: saveEdit() - Save all project data including Monitor configuration
-function saveEdit() {
+/**
+ * Validate edit modal inputs before saving
+ *
+ * @returns {Object|null} - { project, oldName } or null if invalid
+ */
+function validateEditInputs() {
     if (currentProjectIndex === null || currentProjectIndex < 0 || currentProjectIndex >= projectsData.length) {
         alert('Invalid project index.');
-        return;
+        return null;
+    }
+
+    const editName = document.getElementById("edit-name");
+    if (!editName || !editName.value.trim()) {
+        alert('Project name is required.');
+        return null;
     }
 
     const project = projectsData[currentProjectIndex];
     const oldName = project.name;
 
-    // Get basic project fields
-    const editName = document.getElementById("edit-name");
-    if (!editName || !editName.value.trim()) {
-        alert('Project name is required.');
-        return;
-    }
+    return { project, oldName };
+}
 
-    project.name = editName.value.trim();
+/**
+ * Collect basic project fields from edit form
+ *
+ * @param {Object} project - Project to update
+ */
+function collectBasicProjectFields(project) {
+    const editName = document.getElementById("edit-name");
+    if (editName) {
+        project.name = editName.value.trim();
+    }
 
     const editURL = document.getElementById("edit-url");
     if (editURL) {
@@ -3558,38 +3820,47 @@ function saveEdit() {
             project.fields[i] = fieldValueInput.value.trim() || "";
         }
     }
+}
 
-    // Collect Monitor data from form
-    const editModal = document.getElementById('edit-modal');
+/**
+ * Collect and merge monitor configuration data
+ *
+ * @param {Object} project - Project to update
+ * @param {HTMLElement} editModal - Edit modal element
+ * @returns {boolean} - True if successful, false if validation failed
+ */
+function collectAndMergeMonitorData(project, editModal) {
     if (!project.monitor) {
         project.monitor = createDefaultMonitor();
     }
 
-    if (editModal) {
-        const collectedMonitor = collectMonitorFromForm(editModal, project);
-        if (!collectedMonitor) {
-            // Validation failed - collectMonitorFromForm already showed errors
-            return;
-        }
-
-        // Merge collected monitor data with existing state
-        const existingMonitor = cloneMonitorData(project.monitor);
-        const updatedMonitor = {
-            ...existingMonitor,
-            baseUrl: collectedMonitor.baseUrl,
-            login: { ...existingMonitor.login, ...collectedMonitor.login },
-            tests: collectedMonitor.tests,
-            schedule: { ...existingMonitor.schedule, ...collectedMonitor.schedule }
-        };
-        
-        // Preserve state data
-        updatedMonitor.state = existingMonitor.state || {};
-        
-        // Ensure all defaults are present
-        mergeDefaults(updatedMonitor, DEFAULT_MONITOR_TEMPLATE);
-        
-        project.monitor = updatedMonitor;
+    if (!editModal) {
+        return true;
     }
+
+    const collectedMonitor = collectMonitorFromForm(editModal, project);
+    if (!collectedMonitor) {
+        // Validation failed - collectMonitorFromForm already showed errors
+        return false;
+    }
+
+    // Merge collected monitor data with existing state
+    const existingMonitor = cloneMonitorData(project.monitor);
+    const updatedMonitor = {
+        ...existingMonitor,
+        baseUrl: collectedMonitor.baseUrl,
+        login: { ...existingMonitor.login, ...collectedMonitor.login },
+        tests: collectedMonitor.tests,
+        schedule: { ...existingMonitor.schedule, ...collectedMonitor.schedule }
+    };
+
+    // Preserve state data
+    updatedMonitor.state = existingMonitor.state || {};
+
+    // Ensure all defaults are present
+    mergeDefaults(updatedMonitor, DEFAULT_MONITOR_TEMPLATE);
+
+    project.monitor = updatedMonitor;
 
     // Validate and fix schedule interval
     const schedule = project.monitor.schedule || {};
@@ -3604,6 +3875,16 @@ function saveEdit() {
     // Final merge to ensure consistency
     mergeDefaults(project.monitor, DEFAULT_MONITOR_TEMPLATE);
 
+    return true;
+}
+
+/**
+ * Finalize and persist edit changes
+ *
+ * @param {Object} project - Updated project
+ * @param {string} oldName - Original project name
+ */
+function finalizeAndPersistEdit(project, oldName) {
     // Restart scheduler if needed
     runScheduledMonitorCycle();
 
@@ -3622,6 +3903,33 @@ function saveEdit() {
 
     // Close modal
     closeEditModal();
+}
+
+/**
+ * Save all project data including Monitor configuration
+ *
+ * Orchestrates save by calling specialized helper functions.
+ */
+function saveEdit() {
+    // Validate inputs
+    const validated = validateEditInputs();
+    if (!validated) {
+        return;
+    }
+
+    const { project, oldName } = validated;
+
+    // Collect basic project fields
+    collectBasicProjectFields(project);
+
+    // Collect and merge monitor configuration
+    const editModal = document.getElementById('edit-modal');
+    if (!collectAndMergeMonitorData(project, editModal)) {
+        return; // Validation failed
+    }
+
+    // Finalize and persist changes
+    finalizeAndPersistEdit(project, oldName);
 }
 
 // Helper functions for modal management
