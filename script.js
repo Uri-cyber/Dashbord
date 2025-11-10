@@ -123,9 +123,8 @@ const DEFAULT_MONITOR_TEMPLATE = Object.freeze({
         overall: "unknown",
         tests: {},
         failures: [],
-        token: null,
-        tokenKind: null,
-        tokenStoredAt: null,
+        // NOTE: Tokens NO LONGER stored in state (security fix)
+        // Tokens now managed by TokenManager (in-memory only)
         lastCreatedId: null
     }
 });
@@ -657,17 +656,19 @@ function persistRunResult(project, index, results, context) {
     monitor.state.tests = testsState;
     monitor.state.lastCreatedId = context.lastCreatedId ?? null;
     
-    // FIX: Save the token to state so it persists between runs
+    // SECURITY FIX: Use TokenManager for secure in-memory token storage
+    // Tokens are NO LONGER stored in localStorage (prevents XSS attacks)
     if (context.token) {
-        monitor.state.token = context.token;
-        monitor.state.tokenKind = context.tokenKind;
-        monitor.state.tokenStoredAt = finishedAt;
+        TokenManager.setToken(index, context.token, context.tokenKind);
     } else {
         // Clear token if no new token was obtained
-        monitor.state.token = null;
-        monitor.state.tokenKind = null;
-        monitor.state.tokenStoredAt = null;
+        TokenManager.clearToken(index);
     }
+
+    // Remove legacy token fields from state (no longer used)
+    delete monitor.state.token;
+    delete monitor.state.tokenKind;
+    delete monitor.state.tokenStoredAt;
     
     try {
         localStorage.setItem('projectsData', JSON.stringify(projectsData));
@@ -990,20 +991,19 @@ async function runProjectChecks(index, options = {}) {
     resetMonitorRunContext(context, options.mode || 'manual');
     context.source = options && options.source ? options.source : 'card';
     
-    // FIX: Load existing token from state if available
-    console.log('🔍 Checking for existing token in state:', {
-        hasState: !!project.monitor.state,
-        hasToken: !!(project.monitor.state && project.monitor.state.token),
-        token: project.monitor.state?.token,
-        tokenKind: project.monitor.state?.tokenKind
+    // SECURITY FIX: Load existing token from TokenManager (secure in-memory storage)
+    const storedToken = TokenManager.getToken(index);
+    console.log('🔍 Checking for existing token in TokenManager:', {
+        hasToken: !!storedToken,
+        tokenKind: storedToken?.tokenKind
     });
-    
-    if (project.monitor.state && project.monitor.state.token) {
-        context.token = project.monitor.state.token;
-        context.tokenKind = project.monitor.state.tokenKind;
-        console.log('✅ Loaded existing token from state:', context.token);
+
+    if (storedToken) {
+        context.token = storedToken.token;
+        context.tokenKind = storedToken.tokenKind;
+        console.log('✅ Loaded existing token from TokenManager');
     } else {
-        console.log('❌ No existing token found in state');
+        console.log('❌ No existing token found in TokenManager');
     }
     
     beginMonitorRun(index, context);
