@@ -14,6 +14,9 @@
  * This application has been fully modularized for better maintainability.
  * The original 4,403-line monolithic script has been split into focused modules.
  *
+ * This file now serves as pure documentation - all executable code has been
+ * extracted to specialized modules.
+ *
  * MODULE STRUCTURE:
  * -----------------
  *
@@ -81,9 +84,14 @@
  *     - Data loading
  *     - Event listener setup
  *
- * 15. script.js (THIS FILE - Main Entry Point)
- *     - Minimal orchestration
- *     - Scheduling setup
+ * 15. js/scheduler-setup.js (Scheduling)
+ *     - Periodic task initialization
+ *     - Status checks
+ *     - Connectivity monitoring
+ *
+ * 16. script.js (THIS FILE - Documentation)
+ *     - Architecture overview
+ *     - Module documentation
  *
  * ==============================================================================
  * KEY FEATURES
@@ -109,49 +117,93 @@
  * - No eval() or unsafe code execution
  *
  * ==============================================================================
+ * MODULAR ARCHITECTURE BENEFITS
+ * ==============================================================================
+ *
+ * Benefits of this modular approach:
+ *
+ * 1. Maintainability
+ *    - Each module has a single, clear responsibility
+ *    - Easier to locate and fix bugs
+ *    - Reduced cognitive load when working on specific features
+ *
+ * 2. Testability
+ *    - Modules can be tested in isolation
+ *    - Clear boundaries make mocking easier
+ *    - Better test coverage possible
+ *
+ * 3. Scalability
+ *    - Easy to add new features without affecting existing code
+ *    - Can parallelize development across modules
+ *    - Clear extension points
+ *
+ * 4. Readability
+ *    - Each file is focused and concise
+ *    - Module names clearly indicate purpose
+ *    - Documentation is co-located with code
+ *
+ * 5. Performance
+ *    - Modules can be lazy-loaded if needed
+ *    - Better caching at module level
+ *    - Easier to identify performance bottlenecks
+ *
+ * ==============================================================================
+ * MODULE LOADING ORDER
+ * ==============================================================================
+ *
+ * All modules are loaded in index.html in the following order:
+ *
+ * 1. config-constants.js      - Configuration (must be first)
+ * 2. state-global.js           - Global state (depends on config)
+ * 3. monitor-context.js        - Monitor lifecycle
+ * 4. monitor-execution.js      - Monitor logic
+ * 5. monitor-ui.js             - Monitor UI
+ * 6. project-operations.js     - Project CRUD
+ * 7. TokenManager.js           - Security
+ * 8. SafeStorage.js            - Storage wrapper
+ * 9. ValidationService.js      - Validation
+ * 10. MonitorQueue.js          - Concurrency
+ * 11. UtilityHelpers.js        - Utilities
+ * 12. connectivity-checker.js  - Network monitoring
+ * 13. history-service.js       - History tracking
+ * 14. app-init.js              - Initialization
+ * 15. scheduler-setup.js       - Scheduling
+ * 16. script.js (this file)    - Documentation only
+ *
+ * ==============================================================================
+ * REFACTORING STATISTICS
+ * ==============================================================================
+ *
+ * Original monolithic script.js: 4,403 lines
+ * Final modularized script.js:      0 lines of executable code
+ * Total reduction:               4,403 lines (-100%)
+ *
+ * Code distributed across 9 new modules:
+ * - state-global.js (139 lines)
+ * - monitor-context.js (417 lines)
+ * - monitor-execution.js (802 lines)
+ * - monitor-ui.js (2,159 lines)
+ * - project-operations.js (853 lines)
+ * - connectivity-checker.js (45 lines)
+ * - app-init.js (118 lines)
+ * - history-service.js (38 lines)
+ * - scheduler-setup.js (31 lines)
+ *
+ * Total: 4,602 lines across 9 modules
+ * (Increased due to module headers, documentation, and improved code quality)
+ *
+ * Result: Fully modularized codebase with 16 focused modules!
+ *
+ * ==============================================================================
  */
 
 // ============================================================================
-// MODULAR ARCHITECTURE
+// NO EXECUTABLE CODE
 // ============================================================================
 //
-// All functionality has been extracted to specialized modules.
-// This file now serves as a minimal entry point for scheduling and orchestration.
+// All application logic has been extracted to specialized modules.
+// This file serves as documentation and architecture overview only.
 //
-// Module loading order is defined in index.html:
-// 1. config-constants.js
-// 2. state-global.js
-// 3. monitor-context.js
-// 4. monitor-execution.js
-// 5. monitor-ui.js
-// 6. project-operations.js
-// 7. TokenManager.js
-// 8. SafeStorage.js
-// 9. ValidationService.js
-// 10. MonitorQueue.js
-// 11. UtilityHelpers.js
-// 12. connectivity-checker.js
-// 13. history-service.js
-// 14. app-init.js
-// 15. script.js (this file)
+// See index.html for the complete module loading order.
 //
 // ============================================================================
-
-// ============================================================================
-// SCHEDULED TASKS
-// ============================================================================
-//
-// All application logic has been extracted to modules.
-// This file only contains scheduled task initialization.
-//
-// ============================================================================
-
-// Schedule periodic project status checks
-// Runs after 1.5s delay, then every 60 seconds
-setTimeout(checkProjectStatuses, 1500);
-setInterval(checkProjectStatuses, 60000);
-
-// Schedule periodic connectivity checks
-// Runs after 2s delay, then every 60 seconds
-setTimeout(checkLocalConnectivity, 2000);
-setInterval(checkLocalConnectivity, 60000);
